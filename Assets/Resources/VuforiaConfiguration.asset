@@ -55,4 +55,4 @@ MonoBehaviour:
   webcam:
     renderTextureLayer: 30
   packageInformation:
-    ARFoundationVersion: 6.1.1
+    ARFoundationVersion: 6.3.4
