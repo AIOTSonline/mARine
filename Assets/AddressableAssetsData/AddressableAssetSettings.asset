@@ -15,7 +15,7 @@ MonoBehaviour:
   m_DefaultGroup: 2605c0e985cf2814a9d2ccc7216b1218
   m_currentHash:
     serializedVersion: 2
-    Hash: ae1feec3bf25346a0a5c6de7cfa9ca90
+    Hash: 0bc36773dcd6da8b0126b7b64c84ec63
   m_OptimizeCatalogSize: 0
   m_BuildRemoteCatalog: 0
   m_CatalogRequestsTimeout: 0
@@ -33,6 +33,7 @@ MonoBehaviour:
   m_UniqueBundleIds: 0
   m_EnableJsonCatalog: 0
   m_NonRecursiveBuilding: 1
+  m_AllowNestedBundleFolders: 0
   m_CCDEnabled: 0
   m_maxConcurrentWebRequests: 3
   m_UseUWRForLocalBundles: 0
@@ -41,6 +42,7 @@ MonoBehaviour:
   m_BundleRedirectLimit: -1
   m_SharedBundleSettings: 0
   m_SharedBundleSettingsCustomGroupIndex: 0
+  m_simulatedLoadDelay: 0.1
   m_ContiguousBundles: 1
   m_StripUnityVersionFromBundleBuild: 0
   m_DisableVisibleSubAssetRepresentations: 0
@@ -64,6 +66,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 9a8bde487c4d51449a9f794d796d9d65, type: 2}
   - {fileID: 11400000, guid: f193a03643f1db14f8adbdf038f429cb, type: 2}
   - {fileID: 11400000, guid: ed5a7fbb3e389494a9a2a090a69e9555, type: 2}
+  - {fileID: 11400000, guid: b43cfdade97fb40438a3416a1957136a, type: 2}
   m_BuildSettings:
     m_LogResourceManagerExceptions: 1
     m_BundleBuildPath: Temp/com.unity.addressables/AssetBundles

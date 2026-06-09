@@ -1,11 +1,12 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.AddressableAssets;
 
 public class UIManager : MonoBehaviour
 {
     public void LoadARScene()
     {
-        SceneManager.LoadScene("AR_Spawn");
+        Addressables.LoadSceneAsync("AR_Spawn");
     }
 
     public void LoadFreeExploreEcosystem()
