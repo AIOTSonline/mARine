@@ -1,6 +1,6 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.AddressableAssets;
+using UnityEngine.SceneManagement;
 
 public class UIManager : MonoBehaviour
 {

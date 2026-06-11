@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+﻿/*using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
 using UnityEngine.SceneManagement;
@@ -9,35 +9,51 @@ public class BehaviorSceneManager : MonoBehaviour
     public Transform addedScriptsPanel;
     public GameObject scriptblockbutton;
 
-    private int selectedActorIndex;
+    private string selectedActorUniqueID;
+    private int selectedActorLayerIndex;
     private string selectedEnvKey;
     private EnvironmentData environmentData;
+    private PlacedActorData selectedActor;
 
     void Start()
     {
-        selectedActorIndex = PlayerPrefs.GetInt("SelectedActorIndex", -1);
+        selectedActorUniqueID = PlayerPrefs.GetString("SelectedActorUniqueID", "");
+        selectedActorLayerIndex = PlayerPrefs.GetInt("SelectedActorLayerIndex", 0);
         selectedEnvKey = PlayerPrefs.GetString("SelectedEnvironmentKey", "");
 
-        if (selectedActorIndex < 0 || string.IsNullOrEmpty(selectedEnvKey))
+        if (string.IsNullOrEmpty(selectedActorUniqueID) || string.IsNullOrEmpty(selectedEnvKey))
         {
-            Debug.LogError("Missing actor index or environment key.");
+            Debug.LogError("Missing actor unique ID or environment key.");
             return;
         }
 
         string json = PlayerPrefs.GetString(selectedEnvKey, "");
         environmentData = JsonUtility.FromJson<EnvironmentData>(json);
 
-        if (environmentData == null || selectedActorIndex >= environmentData.placedActors.Count)
+        if (environmentData == null)
         {
-            Debug.LogError("Invalid environment data or actor index.");
+            Debug.LogError("Invalid environment data.");
             return;
         }
 
-        PlacedActorData actor = environmentData.placedActors[selectedActorIndex];
-        mainPlayerToggle.isOn = actor.isMainPlayer;
+        // Migrate legacy data just in case
+        environmentData.MigrateFromLegacy();
+
+        // Find actor by unique ID across all layers
+        selectedActor = FindActorByUniqueID(selectedActorUniqueID);
+
+        if (selectedActor == null)
+        {
+            Debug.LogError($"Actor with ID '{selectedActorUniqueID}' not found in any layer.");
+            return;
+        }
+
+        Debug.Log($"Loaded actor: {selectedActor.prefabName} on Layer {selectedActor.layerIndex}");
+
+        mainPlayerToggle.isOn = selectedActor.isMainPlayer;
         mainPlayerToggle.onValueChanged.AddListener(OnMainPlayerToggleChanged);
 
-        // Handle script just added
+        // Handle pending script
         string pendingScript = PlayerPrefs.GetString("PendingScriptToAdd", "");
         if (!string.IsNullOrEmpty(pendingScript))
         {
@@ -46,14 +62,13 @@ public class BehaviorSceneManager : MonoBehaviour
             if (pendingScript == "Food Consumption")
             {
                 string pendingFoodTargetID = PlayerPrefs.GetString("PendingFoodTargetID", "");
-
                 if (!string.IsNullOrEmpty(pendingFoodTargetID))
                 {
-                    var target = environmentData.placedActors.Find(a => a.uniqueID == pendingFoodTargetID);
+                    // Search across all layers for food target
+                    PlacedActorData target = FindActorByUniqueID(pendingFoodTargetID);
                     if (target != null)
                     {
-                        actor.foodTargetUniqueID = pendingFoodTargetID;
-
+                        selectedActor.foodTargetUniqueID = pendingFoodTargetID;
                         Debug.Log($"Food target assigned: {target.prefabName} (ID: {pendingFoodTargetID})");
                         SaveEnvironment();
                     }
@@ -72,17 +87,32 @@ public class BehaviorSceneManager : MonoBehaviour
         RefreshScriptDisplay();
     }
 
+    PlacedActorData FindActorByUniqueID(string uniqueID)
+    {
+        if (environmentData == null) return null;
+
+        for (int i = 0; i < 3; i++)
+        {
+            PlacedActorData found = environmentData.GetLayerActors(i).Find(a => a.uniqueID == uniqueID);
+            if (found != null) return found;
+        }
+
+        return null;
+    }
+
     void OnMainPlayerToggleChanged(bool isOn)
     {
-        for (int i = 0; i < environmentData.placedActors.Count; i++)
+        // Clear main player flag across all layers
+        for (int i = 0; i < 3; i++)
         {
-            environmentData.placedActors[i].isMainPlayer = false;
+            foreach (var actor in environmentData.GetLayerActors(i))
+                actor.isMainPlayer = false;
         }
 
         if (isOn)
         {
-            environmentData.placedActors[selectedActorIndex].isMainPlayer = true;
-            Debug.Log($"Actor '{environmentData.placedActors[selectedActorIndex].prefabName}' set as Main Player.");
+            selectedActor.isMainPlayer = true;
+            Debug.Log($"Actor '{selectedActor.prefabName}' set as Main Player.");
         }
         else
         {
@@ -94,15 +124,13 @@ public class BehaviorSceneManager : MonoBehaviour
 
     void AddScriptToActor(string scriptName)
     {
-        PlacedActorData actor = environmentData.placedActors[selectedActorIndex];
+        if (selectedActor.addedScripts == null)
+            selectedActor.addedScripts = new List<string>();
 
-        if (actor.addedScripts == null)
-            actor.addedScripts = new List<string>();
-
-        if (!actor.addedScripts.Contains(scriptName))
+        if (!selectedActor.addedScripts.Contains(scriptName))
         {
-            actor.addedScripts.Add(scriptName);
-            Debug.Log($"Script '{scriptName}' added to actor: {actor.prefabName} (ID: {actor.uniqueID})");
+            selectedActor.addedScripts.Add(scriptName);
+            Debug.Log($"Script '{scriptName}' added to: {selectedActor.prefabName}");
             SaveEnvironment();
         }
     }
@@ -110,24 +138,183 @@ public class BehaviorSceneManager : MonoBehaviour
     void RefreshScriptDisplay()
     {
         foreach (Transform child in addedScriptsPanel)
-        {
             Destroy(child.gameObject);
-        }
 
-        PlacedActorData actor = environmentData.placedActors[selectedActorIndex];
+        if (selectedActor.addedScripts == null) return;
 
-        if (actor.addedScripts == null) return;
-
-        foreach (string scriptName in actor.addedScripts)
+        foreach (string scriptName in selectedActor.addedScripts)
         {
             GameObject scriptVisual = Instantiate(scriptblockbutton, addedScriptsPanel);
-            Debug.Log($"Instantiated visual for script: {scriptName}");
-
             Text txt = scriptVisual.GetComponentInChildren<Text>();
             if (txt != null)
                 txt.text = scriptName;
             else
                 Debug.LogError("Text component not found in scriptblockbutton prefab!");
+        }
+    }
+
+    void SaveEnvironment()
+    {
+        string updatedJson = JsonUtility.ToJson(environmentData);
+        PlayerPrefs.SetString(selectedEnvKey, updatedJson);
+        PlayerPrefs.Save();
+    }
+
+    public void OnAddScriptsButtonPressed()
+    {
+        SceneManager.LoadScene("AddScriptsScene");
+    }
+}*/
+using UnityEngine;
+using UnityEngine.UI;
+using System.Collections.Generic;
+using UnityEngine.SceneManagement;
+
+public class BehaviorSceneManager : MonoBehaviour
+{
+    public Toggle mainPlayerToggle;
+    public Transform addedScriptsPanel;
+    public GameObject scriptblockbutton;
+
+    private string selectedActorUniqueID;
+    private int selectedActorLayerIndex;
+    private string selectedEnvKey;
+    private EnvironmentData environmentData;
+    private PlacedActorData selectedActor;
+
+    void Start()
+    {
+        selectedActorUniqueID = PlayerPrefs.GetString("SelectedActorUniqueID", "");
+        selectedActorLayerIndex = PlayerPrefs.GetInt("SelectedActorLayerIndex", 0);
+        selectedEnvKey = PlayerPrefs.GetString("SelectedEnvironmentKey", "");
+
+        if (string.IsNullOrEmpty(selectedActorUniqueID) ||
+            string.IsNullOrEmpty(selectedEnvKey))
+        {
+            Debug.LogError("Missing actor unique ID or environment key.");
+            return;
+        }
+
+        string json = PlayerPrefs.GetString(selectedEnvKey, "");
+        environmentData = JsonUtility.FromJson<EnvironmentData>(json);
+
+        if (environmentData == null)
+        {
+            Debug.LogError("Invalid environment data.");
+            return;
+        }
+
+        environmentData.MigrateFromLegacy();
+
+        selectedActor = FindActorByUniqueID(selectedActorUniqueID);
+
+        if (selectedActor == null)
+        {
+            Debug.LogError($"Actor '{selectedActorUniqueID}' not found in any layer.");
+            return;
+        }
+
+        Debug.Log($"Loaded actor: {selectedActor.prefabName} " +
+                  $"on Layer {selectedActor.layerIndex}");
+
+        mainPlayerToggle.isOn = selectedActor.isMainPlayer;
+        mainPlayerToggle.onValueChanged.AddListener(OnMainPlayerToggleChanged);
+
+        string pendingScript = PlayerPrefs.GetString("PendingScriptToAdd", "");
+        if (!string.IsNullOrEmpty(pendingScript))
+        {
+            AddScriptToActor(pendingScript);
+
+            if (pendingScript == "Food Consumption")
+            {
+                string pendingFoodTargetID = PlayerPrefs.GetString("PendingFoodTargetID", "");
+                if (!string.IsNullOrEmpty(pendingFoodTargetID))
+                {
+                    PlacedActorData target = FindActorByUniqueID(pendingFoodTargetID);
+                    if (target != null)
+                    {
+                        selectedActor.foodTargetUniqueID = pendingFoodTargetID;
+                        Debug.Log($"Food target: {target.prefabName} " +
+                                  $"(ID: {pendingFoodTargetID})");
+                        SaveEnvironment();
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Food target not found: {pendingFoodTargetID}");
+                    }
+
+                    PlayerPrefs.DeleteKey("PendingFoodTargetID");
+                }
+            }
+
+            PlayerPrefs.DeleteKey("PendingScriptToAdd");
+        }
+
+        RefreshScriptDisplay();
+    }
+
+    PlacedActorData FindActorByUniqueID(string uniqueID)
+    {
+        if (environmentData == null) return null;
+
+        int total = environmentData.layerCount > 0 ? environmentData.layerCount : 5;
+        for (int i = 0; i < total; i++)
+        {
+            var found = environmentData.GetLayerActors(i)
+                                       .Find(a => a.uniqueID == uniqueID);
+            if (found != null) return found;
+        }
+
+        return null;
+    }
+
+    void OnMainPlayerToggleChanged(bool isOn)
+    {
+        // Clear main player across all layers
+        int total = environmentData.layerCount > 0 ? environmentData.layerCount : 5;
+        for (int i = 0; i < total; i++)
+        {
+            foreach (var actor in environmentData.GetLayerActors(i))
+                actor.isMainPlayer = false;
+        }
+
+        if (isOn)
+        {
+            selectedActor.isMainPlayer = true;
+            Debug.Log($"Main player: {selectedActor.prefabName}");
+        }
+
+        SaveEnvironment();
+    }
+
+    void AddScriptToActor(string scriptName)
+    {
+        if (selectedActor.addedScripts == null)
+            selectedActor.addedScripts = new List<string>();
+
+        if (!selectedActor.addedScripts.Contains(scriptName))
+        {
+            selectedActor.addedScripts.Add(scriptName);
+            Debug.Log($"Script '{scriptName}' added to {selectedActor.prefabName}");
+            SaveEnvironment();
+        }
+    }
+
+    void RefreshScriptDisplay()
+    {
+        foreach (Transform child in addedScriptsPanel)
+            Destroy(child.gameObject);
+
+        if (selectedActor.addedScripts == null) return;
+
+        foreach (string scriptName in selectedActor.addedScripts)
+        {
+            GameObject scriptVisual = Instantiate(scriptblockbutton, addedScriptsPanel);
+            Text txt = scriptVisual.GetComponentInChildren<Text>();
+            if (txt != null)
+                txt.text = scriptName;
+            else
+                Debug.LogError("Text not found in scriptblockbutton prefab!");
         }
     }
 
