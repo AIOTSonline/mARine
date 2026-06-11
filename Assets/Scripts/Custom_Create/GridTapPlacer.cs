@@ -1,11 +1,11 @@
 using UnityEngine;
-using UnityEngine.XR.ARFoundation;
 using UnityEngine.EventSystems;
 
 public class GridTapPlacer : MonoBehaviour
 {
-    public Camera arCamera;                     // AR Camera from AR Session Origin
-    public ActorSelector actorSelector;        // Reference to ActorSelector script
+    public Camera arCamera;
+    public ActorSelector actorSelector;
+    public LayerManager layerManager;
 
     void Update()
     {
@@ -15,29 +15,7 @@ public class GridTapPlacer : MonoBehaviour
             if (EventSystem.current.IsPointerOverGameObject())
                 return;
 
-            Ray ray = arCamera.ScreenPointToRay(Input.mousePosition);
-            if (Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity, ~0))
-            {
-                Debug.Log("Hit: " + hit.collider.gameObject.name);
-                Debug.DrawRay(ray.origin, ray.direction * 100f, Color.red, 1f);
-
-                GridCellScript cell = hit.collider.GetComponent<GridCellScript>();
-
-                if (cell != null && !cell.isOccupied)
-                {
-                    GameObject selectedActor = actorSelector.GetSelectedActor();
-                    if (selectedActor == null)
-                    {
-                        Debug.Log("No actor selected!");
-                        return;
-                    }
-
-                    cell.PlaceActor(selectedActor);
-                    Debug.Log($"Placed actor {selectedActor.name} at {cell.gameObject.name}");
-
-                    actorSelector.ClearSelection();
-                }
-            }
+            TryPlaceActor(Input.mousePosition);
         }
 #else
         if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
@@ -45,30 +23,85 @@ public class GridTapPlacer : MonoBehaviour
             if (EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId))
                 return;
 
-            Ray ray = arCamera.ScreenPointToRay(Input.GetTouch(0).position);
-            if (Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity, ~0))
+            TryPlaceActor(Input.GetTouch(0).position);
+        }
+#endif
+    }
+
+    void TryPlaceActor(Vector2 screenPos)
+    {
+        if (layerManager == null)
+        {
+            Debug.LogWarning("LayerManager not assigned on GridTapPlacer!");
+            return;
+        }
+
+        GridManager activeGridManager = layerManager.GetActiveGridManager();
+        if (activeGridManager == null)
+        {
+            Debug.LogWarning("No active GridManager found!");
+            return;
+        }
+
+        GameObject[,] activeGrid = activeGridManager.GetGrid();
+        if (activeGrid == null)
+        {
+            Debug.LogWarning("Active grid is null!");
+            return;
+        }
+
+        Ray ray = arCamera.ScreenPointToRay(screenPos);
+
+        Debug.Log($"Tapping on Layer {layerManager.GetActiveLayer()} — " +
+                  $"grid size: {activeGrid.GetLength(0)}x{activeGrid.GetLength(1)}");
+
+        GridCellScript hitCell = null;
+        float closestDistance = Mathf.Infinity;
+
+        for (int x = 0; x < activeGrid.GetLength(0); x++)
+        {
+            for (int y = 0; y < activeGrid.GetLength(1); y++)
             {
-                Debug.Log("Touch Hit: " + hit.collider.gameObject.name);
-                Debug.DrawRay(ray.origin, ray.direction * 100f, Color.red, 1f);
+                GameObject cellObject = activeGrid[x, y];
+                if (cellObject == null) continue;
 
-                GridCellScript cell = hit.collider.GetComponent<GridCellScript>();
+                Collider cellCollider = cellObject.GetComponent<Collider>();
+                if (cellCollider == null) continue;
 
-                if (cell != null && !cell.isOccupied)
+                if (cellCollider.Raycast(ray, out RaycastHit hit, Mathf.Infinity))
                 {
-                    GameObject selectedActor = actorSelector.GetSelectedActor();
-                    if (selectedActor == null)
+                    if (hit.distance < closestDistance)
                     {
-                        Debug.Log("No actor selected!");
-                        return;
+                        closestDistance = hit.distance;
+                        hitCell = cellObject.GetComponent<GridCellScript>();
+                        Debug.Log($"Hit cell [{x},{y}] on Layer {layerManager.GetActiveLayer()} " +
+                                  $"at distance {hit.distance}");
                     }
-
-                    cell.PlaceActor(selectedActor);
-                    Debug.Log($"Placed actor {selectedActor.name} at {cell.gameObject.name}");
-
-                    actorSelector.ClearSelection();
                 }
             }
         }
-#endif
+
+        if (hitCell != null && !hitCell.isOccupied)
+        {
+            GameObject selectedActor = actorSelector.GetSelectedActor();
+            if (selectedActor == null)
+            {
+                Debug.Log("No actor selected!");
+                return;
+            }
+
+            hitCell.PlaceActor(selectedActor);
+            Debug.Log($"Successfully placed actor on Layer {layerManager.GetActiveLayer()}");
+            actorSelector.ClearSelection();
+        }
+        else if (hitCell != null && hitCell.isOccupied)
+        {
+            Debug.Log($"Cell already occupied on Layer {layerManager.GetActiveLayer()}!");
+        }
+        else
+        {
+            Debug.Log($"No cell hit on Layer {layerManager.GetActiveLayer()} — " +
+                      $"tap may have missed the grid.");
+        }
     }
 }

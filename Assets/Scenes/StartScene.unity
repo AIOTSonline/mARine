@@ -6294,7 +6294,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -0.000061035156, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 200, y: 44}
   m_Pivot: {x: 1, y: 1}
 --- !u!114 &1248709460
@@ -7277,8 +7277,6 @@ MonoBehaviour:
   previousSceneName: StartScene
   infoCanvas: {fileID: 0}
   quizCanvas: {fileID: 0}
-  canvasToggleManager: {fileID: 0}
-  ttsManager: {fileID: 0}
 --- !u!4 &1437968409
 Transform:
   m_ObjectHideFlags: 0

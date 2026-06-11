@@ -147,6 +147,8 @@ PlayerSettings:
   bundleVersion: 0.2.2
   preloadedAssets:
   - {fileID: 11400000, guid: bab0a5d3e764f724491fb1dabc38ff5b, type: 2}
+  - {fileID: 4800000, guid: c9f956787b1d945e7b36e0516201fc76, type: 3}
+  - {fileID: 4800000, guid: 0945859e5a1034c2cb6dce53cb4fb899, type: 3}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   m_HolographicPauseOnTrackingLoss: 1
@@ -274,7 +276,7 @@ PlayerSettings:
   AndroidAllowedArchitectures: -1
   AndroidSplashScreenScale: 0
   androidSplashScreen: {fileID: 0}
-  AndroidKeystoreName: '{dedicated}: user.keystore'
+  AndroidKeystoreName: C:/Users/gunja/Downloads/user.keystore
   AndroidKeyaliasName: user.keystore
   AndroidEnableArmv9SecurityFeatures: 0
   AndroidEnableArm64MTE: 0

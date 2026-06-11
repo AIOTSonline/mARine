@@ -10,9 +10,9 @@ public class BackNavigation : MonoBehaviour
     public GameObject infoCanvas;
     public GameObject quizCanvas;
 
-    public CanvasToggleManager canvasToggleManager;
+  //  public CanvasToggleManager canvasToggleManager;
 
-    public CrossPlatformTTS ttsManager;
+   // public CrossPlatformTTS ttsManager;
 
     void Update()
     {
@@ -24,14 +24,14 @@ public class BackNavigation : MonoBehaviour
             {
                 if (canvas.gameObject.activeSelf)
                 {
-                    if (ttsManager != null)
-                    {
-                        ttsManager.Stop(); // Stop any ongoing TTS before closing the canvas
-                    }
+                   // if (ttsManager != null)
+                  //  {
+                   //     ttsManager.Stop(); // Stop any ongoing TTS before closing the canvas
+                   // }
                     canvas.gameObject.SetActive(false);
 
                     if (canvas.name == "AICanvas")
-                        canvasToggleManager.HideAICanvas();
+                      //  canvasToggleManager.HideAICanvas();
                     return;
                 }
             }
