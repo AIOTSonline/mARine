@@ -100,7 +100,7 @@ public sealed class AndroidTextToSpeechBridge : IDisposable
             return;
 
         _bridge = new AndroidJavaObject(
-            "com.demo.marine.speech.AndroidTextToSpeechBridge");
+            "AndroidTextToSpeechBridge");
     }
 
     private void EnsureNotDisposed()
