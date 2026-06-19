@@ -5,7 +5,7 @@ public sealed class AndroidSpeechRecognizerBridge : IDisposable
 {
 #if UNITY_ANDROID && !UNITY_EDITOR
     private const string JavaClass =
-        "com.demo.marine.speech.AndroidSpeechRecognizerBridge";
+        "AndroidSpeechRecognizerBridge";
 
     private AndroidJavaObject _bridge;
     private bool _disposed;

@@ -491,6 +491,12 @@ public sealed class MarineDemoManager : MonoBehaviour
         return _currentLanguage == "de" ? "de-DE" : "en-US";
     }
 
+    private void OnDisable()
+    {
+        _tts?.Stop();
+        _androidSpeechRecognizer?.Cancel();
+    }
+
     private void OnDestroy()
     {
         _destroyCts.Cancel();
