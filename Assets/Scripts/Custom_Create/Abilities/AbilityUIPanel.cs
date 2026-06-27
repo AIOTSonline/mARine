@@ -1,16 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 
-/// <summary>
-/// Manages the ability button panel in the AR scene.
-/// After the main player is spawned, call SetupForActor() to populate buttons.
-/// 
-/// In your AR Canvas, create:
-///   AbilityButtonPanel (this script) 
-///     └─ [buttons are instantiated here at runtime]
-/// 
-/// Assign abilityButtonPrefab in the Inspector — it needs an AbilityButtonUI component.
-/// </summary>
+
 public class AbilityUIPanel : MonoBehaviour
 {
     [Header("References")]
@@ -22,10 +13,7 @@ public class AbilityUIPanel : MonoBehaviour
 
     private List<GameObject> spawnedButtons = new List<GameObject>();
 
-    /// <summary>
-    /// Call this from ARPlacementController after spawning the main player.
-    /// Clears any existing buttons and builds new ones for the actor's abilities.
-    /// </summary>
+   
     public void SetupForActor(ActorAbilityManager abilityManager)
     {
         ClearButtons();

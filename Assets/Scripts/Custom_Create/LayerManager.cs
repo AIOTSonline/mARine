@@ -1,497 +1,4 @@
-﻿/* using UnityEngine;
-using System.Collections;
-using System.Collections.Generic;
-
-public class LayerManager : MonoBehaviour
-{
-    public static LayerManager Instance;
-
-    [Header("UI Buttons")]
-    public GameObject editButton;
-    public GameObject doneButton;
-    public GameObject nextButton;
-    public GameObject prevButton;
-    public GameObject octoYellowButton;
-    public GameObject octoBlueButton;
-
-    [Header("Settings")]
-    public SandboxSettings settings;
-
-    [Header("Layer Root Objects")]
-    public GameObject layer0Root;
-    public GameObject layer1Root;
-    public GameObject layer2Root;
-
-    [Header("Grid Managers")]
-    public GridManager gridManager0;
-    public GridManager gridManager1;
-    public GridManager gridManager2;
-
-    [Header("Isometric Camera Settings")]
-    public Camera mainCamera;
-    public float isoHeight = 5f;
-    public float isoDistance = 4f;
-    public float isoAngleX = 45f;
-    public float isoAngleY = 45f;
-    public bool isoOrthographic = false;
-    public float isoOrthoSize = 5f;
-
-    [Header("Top Down Camera Settings")]
-    public float topDownHeight = 8f;
-    public float topDownOrthoSize = 3f;
-
-    [Header("Sandbox Center")]
-    public Vector3 sandboxCenter = Vector3.zero;
-
-    [Header("Slide Animation")]
-    public float slideSpeed = 2f;
-    public float slideOffsetX = 9f;
-    public float slideOffsetZ = 9f;
-
-    private int activeLayer = 0;
-    private bool isEditMode = false;
-
-    private Vector3 layer0OriginPos;
-    private Vector3 layer1OriginPos;
-    private Vector3 layer2OriginPos;
-
-    private Coroutine slideCoroutine0;
-    private Coroutine slideCoroutine1;
-    private Coroutine slideCoroutine2;
-
-    private List<GameObject> layer0Actors = new List<GameObject>();
-    private List<GameObject> layer1Actors = new List<GameObject>();
-    private List<GameObject> layer2Actors = new List<GameObject>();
-
-    void Awake()
-    {
-        Instance = this;
-    }
-
-    void Start()
-    {
-        if (layer0Root != null) layer0OriginPos = layer0Root.transform.position;
-        if (layer1Root != null) layer1OriginPos = layer1Root.transform.position;
-        if (layer2Root != null) layer2OriginPos = layer2Root.transform.position;
-
-        SetActiveLayer(0);
-        SetIsometricView();
-        ShowAllLayers();
-
-        doneButton.SetActive(false);
-        octoYellowButton.SetActive(false);
-        octoBlueButton.SetActive(false);
-        editButton.SetActive(true);
-        nextButton.SetActive(true);
-        prevButton.SetActive(true);
-    }
-
-    // -------------------------------------------------------
-    // PUBLIC ACCESSORS
-    // -------------------------------------------------------
-
-    public int GetActiveLayer() => activeLayer;
-    public bool IsEditMode() => isEditMode;
-
-    public void SetActiveLayer(int index)
-    {
-        activeLayer = Mathf.Clamp(index, 0, 2);
-        Debug.Log($"Active Layer set to: {activeLayer}");
-    }
-
-    public void SetSandboxCenter(Vector3 center)
-    {
-        sandboxCenter = center;
-        Debug.Log($"Sandbox center set to: {sandboxCenter}");
-
-        if (layer0Root != null) layer0OriginPos = layer0Root.transform.position;
-        if (layer1Root != null) layer1OriginPos = layer1Root.transform.position;
-        if (layer2Root != null) layer2OriginPos = layer2Root.transform.position;
-
-        SetIsometricView();
-    }
-
-    public GameObject GetRootForLayer(int index)
-    {
-        if (index == 0) return layer0Root;
-        if (index == 1) return layer1Root;
-        return layer2Root;
-    }
-
-    Vector3 GetOriginForLayer(int index)
-    {
-        if (index == 0) return layer0OriginPos;
-        if (index == 1) return layer1OriginPos;
-        return layer2OriginPos;
-    }
-
-    public GridManager GetActiveGridManager()
-    {
-        if (activeLayer == 0) return gridManager0;
-        if (activeLayer == 1) return gridManager1;
-        return gridManager2;
-    }
-
-    public float GetActiveLayerHeight()
-    {
-        if (settings == null) return activeLayer * 1.5f;
-        if (activeLayer == 0) return settings.layer1Height;
-        if (activeLayer == 1) return settings.layer2Height;
-        return settings.layer3Height;
-    }
-
-    // -------------------------------------------------------
-    // ACTOR REGISTRATION
-    // -------------------------------------------------------
-
-    public void RegisterActor(GameObject actor, int layerIndex)
-    {
-        GetActorList(layerIndex).Add(actor);
-        Debug.Log($"Registered actor on Layer {layerIndex}. " +
-                  $"Counts — L0:{layer0Actors.Count} " +
-                  $"L1:{layer1Actors.Count} " +
-                  $"L2:{layer2Actors.Count}");
-    }
-
-    public void UnregisterActor(GameObject actor, int layerIndex)
-    {
-        GetActorList(layerIndex).Remove(actor);
-        Debug.Log($"Unregistered actor from Layer {layerIndex}");
-    }
-
-    List<GameObject> GetActorList(int index)
-    {
-        if (index == 0) return layer0Actors;
-        if (index == 1) return layer1Actors;
-        return layer2Actors;
-    }
-
-    // -------------------------------------------------------
-    // LAYER SWITCHING
-    // -------------------------------------------------------
-
-    public void NextLayer()
-    {
-        if (isEditMode)
-        {
-            Debug.Log("Exit edit mode before switching layers.");
-            return;
-        }
-
-        if (activeLayer < 2)
-        {
-            activeLayer++;
-            UpdateIsometricVisibility();
-            Debug.Log($"Switched to Layer {activeLayer}");
-        }
-        else
-        {
-            Debug.Log("Already at bottom layer.");
-        }
-    }
-
-    public void PrevLayer()
-    {
-        if (isEditMode)
-        {
-            Debug.Log("Exit edit mode before switching layers.");
-            return;
-        }
-
-        if (activeLayer > 0)
-        {
-            activeLayer--;
-            UpdateIsometricVisibility();
-            Debug.Log($"Switched to Layer {activeLayer}");
-        }
-        else
-        {
-            Debug.Log("Already at top layer.");
-        }
-    }
-
-    // -------------------------------------------------------
-    // EDIT MODE
-    // -------------------------------------------------------
-
-    public void EnterEditMode()
-    {
-        isEditMode = true;
-
-        SetTopDownView();
-        UpdateEditModeVisibility();
-
-        editButton.SetActive(false);
-        nextButton.SetActive(false);
-        prevButton.SetActive(false);
-        doneButton.SetActive(true);
-        octoYellowButton.SetActive(true);
-        octoBlueButton.SetActive(true);
-
-        Debug.Log($"Edit mode ON — editing Layer {activeLayer}");
-    }
-
-    public void ExitEditMode()
-    {
-        isEditMode = false;
-
-        SetIsometricView();
-        UpdateIsometricVisibility();
-
-        editButton.SetActive(true);
-        nextButton.SetActive(true);
-        prevButton.SetActive(true);
-        doneButton.SetActive(false);
-        octoYellowButton.SetActive(false);
-        octoBlueButton.SetActive(false);
-
-        Debug.Log("Edit mode OFF — back to isometric view");
-    }
-
-    // -------------------------------------------------------
-    // VISIBILITY LOGIC
-    // -------------------------------------------------------
-
-    void UpdateIsometricVisibility()
-    {
-        for (int i = 0; i < 3; i++)
-        {
-            GameObject root = GetRootForLayer(i);
-            List<GameObject> actors = GetActorList(i);
-
-            if (i < activeLayer)
-            {
-                // This layer has been passed — slide away
-                Vector3 offPos = GetOriginForLayer(i) +
-                                 new Vector3(slideOffsetX, 0f, slideOffsetZ);
-                SlideLayerTo(i, offPos);
-                SetActorsVisible(actors, true, 1f);
-                SetActorsInteractable(actors, false);
-            }
-            else if (i == activeLayer)
-            {
-                // Current active layer — slide back, fully interactable
-                SlideLayerTo(i, GetOriginForLayer(i));
-                ToggleGridVisible(root, true);
-                SetActorsVisible(actors, true, 1f);
-                SetActorsInteractable(actors, true);
-            }
-            else
-            {
-                // Below active — slide back, visible but not interactable
-                SlideLayerTo(i, GetOriginForLayer(i));
-                ToggleGridVisible(root, true);
-                SetActorsVisible(actors, true, 1f);
-                SetActorsInteractable(actors, false);
-            }
-        }
-    }
-
-    void UpdateEditModeVisibility()
-    {
-        for (int i = 0; i < 3; i++)
-        {
-            GameObject root = GetRootForLayer(i);
-            List<GameObject> actors = GetActorList(i);
-
-            if (i < activeLayer)
-            {
-                // Already slid away — keep it away
-                Vector3 offPos = GetOriginForLayer(i) +
-                                 new Vector3(slideOffsetX, 0f, slideOffsetZ);
-                SlideLayerTo(i, offPos);
-                SetActorsVisible(actors, false, 1f);
-                SetActorsInteractable(actors, false);
-            }
-            else if (i == activeLayer)
-            {
-                // Active edit layer — fully visible and interactable
-                SlideLayerTo(i, GetOriginForLayer(i));
-                ToggleGridVisible(root, true);
-                SetActorsVisible(actors, true, 1f);
-                SetActorsInteractable(actors, true);
-            }
-            else
-            {
-                // Below active — visible but not interactable
-                SlideLayerTo(i, GetOriginForLayer(i));
-                ToggleGridVisible(root, true);
-                SetActorsVisible(actors, true, 1f);
-                SetActorsInteractable(actors, false);
-            }
-        }
-    }
-
-    void ShowAllLayers()
-    {
-        for (int i = 0; i < 3; i++)
-        {
-            GameObject root = GetRootForLayer(i);
-            if (root != null)
-            {
-                root.transform.position = GetOriginForLayer(i);
-                ToggleGridVisible(root, true);
-            }
-            SetActorsVisible(GetActorList(i), true, 1f);
-            SetActorsInteractable(GetActorList(i), true);
-        }
-    }
-
-    // -------------------------------------------------------
-    // SLIDE ANIMATION
-    // -------------------------------------------------------
-
-    void SlideLayerTo(int layerIndex, Vector3 targetPos)
-    {
-        GameObject root = GetRootForLayer(layerIndex);
-        if (root == null) return;
-
-        if (layerIndex == 0 && slideCoroutine0 != null) StopCoroutine(slideCoroutine0);
-        if (layerIndex == 1 && slideCoroutine1 != null) StopCoroutine(slideCoroutine1);
-        if (layerIndex == 2 && slideCoroutine2 != null) StopCoroutine(slideCoroutine2);
-
-        Coroutine c = StartCoroutine(SlideCoroutine(root, targetPos));
-
-        if (layerIndex == 0) slideCoroutine0 = c;
-        if (layerIndex == 1) slideCoroutine1 = c;
-        if (layerIndex == 2) slideCoroutine2 = c;
-    }
-
-    IEnumerator SlideCoroutine(GameObject root, Vector3 targetPos)
-    {
-        while (root != null &&
-               Vector3.Distance(root.transform.position, targetPos) > 0.01f)
-        {
-            root.transform.position = Vector3.Lerp(
-                root.transform.position,
-                targetPos,
-                Time.deltaTime * slideSpeed
-            );
-            yield return null;
-        }
-
-        if (root != null)
-            root.transform.position = targetPos;
-    }
-
-    // -------------------------------------------------------
-    // GRID VISIBILITY
-    // -------------------------------------------------------
-
-    void ToggleGridVisible(GameObject root, bool visible)
-    {
-        if (root == null) return;
-        Renderer[] renderers = root.GetComponentsInChildren<Renderer>();
-        foreach (Renderer r in renderers)
-            r.enabled = visible;
-    }
-
-    // -------------------------------------------------------
-    // ACTOR VISIBILITY
-    // -------------------------------------------------------
-
-    void SetActorsVisible(List<GameObject> actors, bool visible, float alpha)
-    {
-        foreach (GameObject actor in actors)
-        {
-            if (actor == null) continue;
-
-            Renderer[] renderers = actor.GetComponentsInChildren<Renderer>();
-            foreach (Renderer r in renderers)
-            {
-                r.enabled = visible;
-
-                if (visible && alpha < 1f)
-                {
-                    foreach (Material mat in r.materials)
-                    {
-                        Color c = mat.color;
-                        c.a = alpha;
-                        mat.color = c;
-
-                        mat.SetFloat("_Mode", 3);
-                        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                        mat.SetInt("_ZWrite", 0);
-                        mat.EnableKeyword("_ALPHABLEND_ON");
-                        mat.renderQueue = 3000;
-                    }
-                }
-                else if (visible && alpha >= 1f)
-                {
-                    foreach (Material mat in r.materials)
-                    {
-                        Color c = mat.color;
-                        c.a = 1f;
-                        mat.color = c;
-
-                        mat.SetFloat("_Mode", 0);
-                        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-                        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
-                        mat.SetInt("_ZWrite", 1);
-                        mat.DisableKeyword("_ALPHABLEND_ON");
-                        mat.renderQueue = -1;
-                    }
-                }
-            }
-        }
-    }
-
-    void SetActorsInteractable(List<GameObject> actors, bool interactable)
-    {
-        foreach (GameObject actor in actors)
-        {
-            if (actor == null) continue;
-            Collider[] colliders = actor.GetComponentsInChildren<Collider>();
-            foreach (Collider c in colliders)
-                c.enabled = interactable;
-        }
-    }
-
-    // -------------------------------------------------------
-    // CAMERA
-    // -------------------------------------------------------
-
-    void SetTopDownView()
-    {
-        if (mainCamera == null) return;
-
-        float activeY = GetActiveLayerHeight();
-
-        mainCamera.transform.position = new Vector3(
-            sandboxCenter.x,
-            sandboxCenter.y + activeY + topDownHeight,
-            sandboxCenter.z
-        );
-        mainCamera.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
-        mainCamera.orthographic = true;
-        mainCamera.orthographicSize = topDownOrthoSize;
-
-        Debug.Log($"Camera → Top Down | OrthoSize:{topDownOrthoSize}");
-    }
-
-    void SetIsometricView()
-    {
-        if (mainCamera == null) return;
-
-        mainCamera.transform.position = new Vector3(
-            sandboxCenter.x - isoDistance,
-            sandboxCenter.y + isoHeight,
-            sandboxCenter.z - isoDistance
-        );
-
-        mainCamera.transform.rotation = Quaternion.Euler(isoAngleX, isoAngleY, 0f);
-
-        mainCamera.orthographic = isoOrthographic;
-        if (isoOrthographic)
-            mainCamera.orthographicSize = isoOrthoSize;
-
-        Debug.Log($"Camera → Isometric | " +
-                  $"Height:{isoHeight} Distance:{isoDistance} " +
-                  $"Ortho:{isoOrthographic}");
-    }
-}*/
-
+﻿
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
@@ -627,9 +134,7 @@ public class LayerManager : MonoBehaviour
         if (layer4Root != null) layer4Root.SetActive(layerCount >= 5);
     }
 
-    // -------------------------------------------------------
     // PUBLIC ACCESSORS
-    // -------------------------------------------------------
 
     public int GetActiveLayer() => activeLayer;
     public int GetLayerCount() => layerCount;
@@ -663,9 +168,7 @@ public class LayerManager : MonoBehaviour
         return settings.GetLayerHeight(activeLayer);
     }
 
-    // -------------------------------------------------------
     // ACTOR REGISTRATION
-    // -------------------------------------------------------
 
     public void RegisterActor(GameObject actor, int layerIndex)
     {
@@ -736,9 +239,7 @@ public class LayerManager : MonoBehaviour
         }
     }
 
-    // -------------------------------------------------------
     // EDIT MODE
-    // -------------------------------------------------------
 
     public void EnterEditMode()
     {
@@ -772,9 +273,7 @@ public class LayerManager : MonoBehaviour
         Debug.Log("Edit mode OFF");
     }
 
-    // -------------------------------------------------------
     // VISIBILITY LOGIC
-    // -------------------------------------------------------
 
     void UpdateIsometricVisibility()
     {
@@ -866,51 +365,7 @@ public class LayerManager : MonoBehaviour
         }
     }
 
-    // -------------------------------------------------------
-    // GRID COLOR
-    // -------------------------------------------------------
-
-    /* // this version change the actor color as well
-    void SetGridColor(GameObject root, Color color)
-     {
-         if (root == null) return;
-
-         Renderer[] renderers = root.GetComponentsInChildren<Renderer>();
-         foreach (Renderer r in renderers)
-         {
-             r.enabled = true;
-             foreach (Material mat in r.materials)
-             {
-                 if (color.a < 1f)
-                 {
-                     mat.SetOverrideTag("RenderType", "Transparent");
-                     mat.SetFloat("_Mode", 3f);
-                     mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                     mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                     mat.SetInt("_ZWrite", 0);
-                     mat.DisableKeyword("_ALPHATEST_ON");
-                     mat.EnableKeyword("_ALPHABLEND_ON");
-                     mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-                     mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
-                 }
-                 else
-                 {
-                     mat.SetOverrideTag("RenderType", "Opaque");
-                     mat.SetFloat("_Mode", 0f);
-                     mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-                     mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
-                     mat.SetInt("_ZWrite", 1);
-                     mat.DisableKeyword("_ALPHATEST_ON");
-                     mat.DisableKeyword("_ALPHABLEND_ON");
-                     mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-                     mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Geometry;
-                 }
-
-                 mat.color = color;
-             }
-         }
-     }
-     */
+   
     void SetGridColor(GameObject root, Color color)
     {
         if (root == null) return;
@@ -970,11 +425,7 @@ public class LayerManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// After SetGridColor repaints an entire layer, this re-applies red
-    /// to any cells GridManager flagged as unusable (blocked by an obstacle).
-    /// Must be called after every SetGridColor call.
-    /// </summary>
+  
     void RestoreUnusableCellColors(int index)
     {
         if (index < 0 || index >= gridManagers.Count) return;
@@ -983,9 +434,7 @@ public class LayerManager : MonoBehaviour
             gm.RestoreUnusableCellColors();
     }
 
-    // -------------------------------------------------------
     // SLIDE ANIMATION
-    // -------------------------------------------------------
 
     void SlideLayerTo(int layerIndex, Vector3 targetPos)
     {
@@ -1015,9 +464,7 @@ public class LayerManager : MonoBehaviour
             root.transform.position = targetPos;
     }
 
-    // -------------------------------------------------------
     // ACTOR VISIBILITY
-    // -------------------------------------------------------
 
     void SetActorsVisible(List<GameObject> actors, bool visible, float alpha)
     {
@@ -1077,9 +524,7 @@ public class LayerManager : MonoBehaviour
         }
     }
 
-    // -------------------------------------------------------
     // CAMERA
-    // -------------------------------------------------------
     public void SetSandboxCenter(Vector3 center)
     {
         sandboxCenter = center;

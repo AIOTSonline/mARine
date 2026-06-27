@@ -78,20 +78,13 @@ public class GridManager : MonoBehaviour
             }
         }
 
-        // FIX: Run obstacle check AFTER all cells are placed,
-        // using a coroutine so Unity's physics world has a chance
-        // to register all colliders before we scan.
         StartCoroutine(CheckObstaclesNextFrame(cellWidth, cellHeight));
 
         Debug.Log($"Grid generated for Layer {layerIndex} at Y={layerY} " +
                   $"(total layers: {totalLayerCount})");
     }
 
-    /// <summary>
-    /// Waits one frame so all colliders (including newly spawned cells and
-    /// environment objects) are fully registered in the physics world,
-    /// then scans each cell for obstacle colliders.
-    /// </summary>
+
     IEnumerator CheckObstaclesNextFrame(float cellWidth, float cellHeight)
     {
         // Wait for end of frame — physics sync happens here
@@ -110,15 +103,12 @@ public class GridManager : MonoBehaviour
                 GridCellScript script = cell.GetComponent<GridCellScript>();
                 if (script == null) continue;
 
-                // Already marked unusable from a previous pass — skip
+               
                 if (script.isOccupied) continue;
 
                 Vector3 cellCenter = cell.transform.position;
 
-                // FIX: Use a tall overlap box so obstacles at Y=0 (on the
-                // environment plane) are caught even when the cell is at a
-                // different Y. The half-height covers from below the plane
-                // all the way up to above the cell.
+           
                 Collider[] hits = Physics.OverlapBox(
                     cellCenter,
                     new Vector3(cellWidth * 0.45f, obstacleCheckHalfHeight, cellHeight * 0.45f),
@@ -155,11 +145,6 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Call this from LayerManager immediately after SetGridColor() repaints a layer.
-    /// Restores red on obstacle-blocked cells (isOccupied=true AND no actor child).
-    /// Uses GridCellScript's cached cellRenderer so no extra GetComponent calls.
-    /// </summary>
     public void RestoreUnusableCellColors()
     {
         if (gridCells == null) return;

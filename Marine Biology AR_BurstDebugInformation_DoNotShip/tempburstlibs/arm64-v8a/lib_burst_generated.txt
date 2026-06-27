@@ -10,6 +10,7 @@ Library: E:\Aiot-main\Marine_Biology_AR_Application\Temp\BurstOutput\tempburstli
 --target-framework=NetFramework
 --generate-link-xml=Temp\burst.link.xml
 --temp-folder=E:\Aiot-main\Marine_Biology_AR_Application\Temp\Burst
+--debug=LineOnly
 --key-folder=E:/Unity/6000.3.14f1/Editor/Data/PlaybackEngines/AndroidPlayer
 --decode-folder=E:\Aiot-main\Marine_Biology_AR_Application\Library\Burst
 --output=E:\Aiot-main\Marine_Biology_AR_Application\Temp\BurstOutput\tempburstlibs\arm64-v8a\lib_burst_generated
@@ -126,6 +127,7 @@ Library: E:\Aiot-main\Marine_Biology_AR_Application\Temp\BurstOutput\tempburstli
 --target-framework=NetFramework
 --generate-link-xml=Temp\burst.link.xml
 --temp-folder=E:\Aiot-main\Marine_Biology_AR_Application\Temp\Burst
+--debug=LineOnly
 --key-folder=E:/Unity/6000.3.14f1/Editor/Data/PlaybackEngines/AndroidPlayer
 --decode-folder=E:\Aiot-main\Marine_Biology_AR_Application\Library\Burst
 --output=E:\Aiot-main\Marine_Biology_AR_Application\Temp\BurstOutput\tempburstlibs\arm64-v8a\lib_burst_generated
@@ -244,6 +246,7 @@ Library: E:\Aiot-main\Marine_Biology_AR_Application\Temp\BurstOutput\tempburstli
 --float-mode=Fast
 --generate-link-xml=Temp\burst.link.xml
 --temp-folder=E:\Aiot-main\Marine_Biology_AR_Application\Temp\Burst
+--debug=LineOnly
 --key-folder=E:/Unity/6000.3.14f1/Editor/Data/PlaybackEngines/AndroidPlayer
 --decode-folder=E:\Aiot-main\Marine_Biology_AR_Application\Library\Burst
 --output=E:\Aiot-main\Marine_Biology_AR_Application\Temp\BurstOutput\tempburstlibs\arm64-v8a\lib_burst_generated
@@ -262,6 +265,7 @@ Library: E:\Aiot-main\Marine_Biology_AR_Application\Temp\BurstOutput\tempburstli
 --target-framework=NetFramework
 --generate-link-xml=Temp\burst.link.xml
 --temp-folder=E:\Aiot-main\Marine_Biology_AR_Application\Temp\Burst
+--debug=LineOnly
 --key-folder=E:/Unity/6000.3.14f1/Editor/Data/PlaybackEngines/AndroidPlayer
 --decode-folder=E:\Aiot-main\Marine_Biology_AR_Application\Library\Burst
 --output=E:\Aiot-main\Marine_Biology_AR_Application\Temp\BurstOutput\tempburstlibs\arm64-v8a\lib_burst_generated
