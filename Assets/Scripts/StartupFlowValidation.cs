@@ -97,7 +97,7 @@ public class StartupFlowValidation : MonoBehaviour
     {
         // FOR TESTING ONLY
         // Remove later
-        Caching.ClearCache();
+        // Caching.ClearCache();
 
         continueButton.GetComponentInChildren<TextMeshProUGUI>().text =
             "Continue";

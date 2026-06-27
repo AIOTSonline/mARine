@@ -1,5 +1,8 @@
-﻿using System.Collections.Generic;
+﻿
+
+using System.Collections.Generic;
 using UnityEngine;
+
 
 [System.Serializable]
 public class PlacedActorData
@@ -10,6 +13,11 @@ public class PlacedActorData
     public bool isMainPlayer = false;
     public string uniqueID;
     public List<string> addedScripts = new();
-    public string foodTargetUniqueID;
-    public int layerIndex = 0; // 0 = surface, 1 = mid-water, 2 = sea floor
+    public string foodTargetUniqueID;       // legacy: manual food target (still used as fallback)
+    public int layerIndex = 0;              // 0 = surface, N-1 = sea floor
+
+   
+    // Food Chain
+  
+    public int foodChainTier = 1;
 }

@@ -2,13 +2,6 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
-/// <summary>
-/// A single ability button in the AR scene UI.
-/// Binds to one ActorAbility and reflects its active state visually.
-/// 
-/// Place this on a Button prefab under the AbilityButtonPanel in your AR Canvas.
-/// AbilityUIPanel instantiates these dynamically based on the main player's abilities.
-/// </summary>
 public class AbilityButtonUI : MonoBehaviour
 {
     [Header("UI References")]
@@ -22,9 +15,6 @@ public class AbilityButtonUI : MonoBehaviour
 
     private ActorAbility boundAbility;
 
-    /// <summary>
-    /// Call this immediately after instantiating the button to bind it to an ability.
-    /// </summary>
     public void Bind(ActorAbility ability)
     {
         boundAbility = ability;
