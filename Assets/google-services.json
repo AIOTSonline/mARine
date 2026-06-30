@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "26017803680-ottosd6n98p11s3j6mu17a0t431brpla.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.Arishna.MarineBiologyAR",
+            "certificate_hash": "d5ab798d51bd87b02fe6428420f0cf7d1f78b218"
+          }
+        },
+        {
           "client_id": "26017803680-2fpo3om07o30jog06jmliufnpvvb9icu.apps.googleusercontent.com",
           "client_type": 3
         }
