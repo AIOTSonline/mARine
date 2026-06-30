@@ -274,7 +274,7 @@ PlayerSettings:
   AndroidAllowedArchitectures: -1
   AndroidSplashScreenScale: 0
   androidSplashScreen: {fileID: 0}
-  AndroidKeystoreName: C:/Users/gunja/Downloads/user.keystore
+  AndroidKeystoreName: '{dedicated}: user.keystore'
   AndroidKeyaliasName: user.keystore
   AndroidEnableArmv9SecurityFeatures: 0
   AndroidEnableArm64MTE: 0
