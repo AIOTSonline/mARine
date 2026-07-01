@@ -1,13 +1,16 @@
 using Firebase;
 using Firebase.Auth;
 using Firebase.Extensions;
+using Google;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using TMPro;
+using System.Linq;
 
 public class AuthManager : MonoBehaviour
 {
     private FirebaseAuth auth;
+    private GoogleSignInConfiguration googleConfig;
 
     [Header("Login")]
     public TMP_InputField loginEmailInput;
@@ -25,28 +28,64 @@ public class AuthManager : MonoBehaviour
     [Header("Status")]
     public TextMeshProUGUI statusText;
 
+    [Header("Popup UI")]
+    public GameObject popupPanel;
+
     private void Start()
     {
+        if (popupPanel != null)
+            popupPanel.SetActive(false);
+
         FirebaseApp.CheckAndFixDependenciesAsync().ContinueWithOnMainThread(task =>
         {
             if (task.Result == DependencyStatus.Available)
             {
                 auth = FirebaseAuth.DefaultInstance;
 
-                // Uncomment later for persistent sessions
-                /*
+                googleConfig = new GoogleSignInConfiguration
+                {
+                    WebClientId = "26017803680-2fpo3om07o30jog06jmliufnpvvb9icu.apps.googleusercontent.com",
+                    RequestIdToken = true,
+                    RequestEmail = true
+                };
+
+                // Auto-login persistence
                 if (auth.CurrentUser != null)
                 {
                     SceneManager.LoadScene("StartScene");
                 }
-                */
             }
             else
             {
                 statusText.text = "Firebase initialization failed.";
-                Debug.LogError("Firebase dependency error: " + task.Result);
+                Debug.LogError(task.Result);
             }
         });
+    }
+
+    private void OnApplicationFocus(bool hasFocus)
+    {
+        if (hasFocus && googleConfig != null)
+        {
+            GoogleSignIn.Configuration = null;
+            GoogleSignIn.Configuration = googleConfig;
+        }
+    }
+
+    private void ShowPopup()
+    {
+        if (popupPanel == null) return;
+
+        popupPanel.SetActive(true);
+
+        CancelInvoke(nameof(HidePopup));
+        Invoke(nameof(HidePopup), 3f);
+    }
+
+    private void HidePopup()
+    {
+        if (popupPanel != null)
+            popupPanel.SetActive(false);
     }
 
     public void GuestLogin()
@@ -56,9 +95,7 @@ public class AuthManager : MonoBehaviour
         auth.SignInAnonymouslyAsync().ContinueWithOnMainThread(task =>
         {
             if (task.IsCompletedSuccessfully)
-            {
                 SceneManager.LoadScene("StartScene");
-            }
             else
             {
                 statusText.text = "Guest login failed.";
@@ -82,7 +119,7 @@ public class AuthManager : MonoBehaviour
             }
             else
             {
-                statusText.text = "Login failed.";
+                statusText.text = "Login failed. Check credentials.";
                 Debug.LogError(task.Exception);
             }
         });
@@ -98,47 +135,140 @@ public class AuthManager : MonoBehaviour
             return;
         }
 
-        auth.CreateUserWithEmailAndPasswordAsync(
-            registerEmailInput.text.Trim(),
-            registerPasswordInput.text
-        ).ContinueWithOnMainThread(task =>
-        {
-            if (task.IsCompletedSuccessfully)
+        string email = registerEmailInput.text.Trim();
+
+        auth.FetchProvidersForEmailAsync(email)
+            .ContinueWithOnMainThread(providerTask =>
             {
-                statusText.text = "Account created.";
-                SceneManager.LoadScene("StartScene");
-            }
-            else
-            {
-                statusText.text = "Registration failed.";
-                Debug.LogError(task.Exception);
-            }
-        });
+                if (providerTask.IsFaulted)
+                {
+                    statusText.text = "Could not verify email.";
+                    Debug.LogError(providerTask.Exception);
+                    return;
+                }
+
+                var providers = providerTask.Result;
+
+                if (providers != null && providers.Count() > 0)
+                {
+                    ShowPopup();
+                    return;
+                }
+
+                auth.CreateUserWithEmailAndPasswordAsync(
+                    email,
+                    registerPasswordInput.text
+                ).ContinueWithOnMainThread(registerTask =>
+                {
+                    if (registerTask.IsCompletedSuccessfully)
+                    {
+                        statusText.text = "Account created.";
+                        SceneManager.LoadScene("StartScene");
+                    }
+                    else
+                    {
+                        if (registerTask.Exception != null &&
+                            registerTask.Exception.ToString().ToLower().Contains("already"))
+                        {
+                            ShowPopup();
+                            return;
+                        }
+
+                        statusText.text = "Registration failed.";
+                        Debug.LogError(registerTask.Exception);
+                    }
+                });
+            });
     }
 
     public void ResetPassword()
     {
         if (auth == null) return;
 
-        auth.SendPasswordResetEmailAsync(
-            forgotPasswordEmailInput.text.Trim()
-        ).ContinueWithOnMainThread(task =>
-        {
-            if (task.IsCompletedSuccessfully)
+        string email = forgotPasswordEmailInput.text.Trim();
+
+        auth.SendPasswordResetEmailAsync(email)
+            .ContinueWithOnMainThread(resetTask =>
             {
-                statusText.text = "Reset email sent.";
-            }
-            else
-            {
-                Debug.LogError(task.Exception);
-                statusText.text = "Password reset failed.";
-            }
-        });
+                if (resetTask.IsCompletedSuccessfully)
+                {
+                    statusText.text = "Reset email sent.";
+                }
+                else
+                {
+                    statusText.text = "Password reset failed.";
+                    Debug.LogError(resetTask.Exception);
+                }
+            });
     }
 
-    // Placeholder until Android-native Google Sign-In is implemented
-    public void GoogleLoginPlaceholder()
+    public void GoogleSignInUser()
     {
-        statusText.text = "Google Sign-In available in Android build.";
+        if (auth == null || googleConfig == null)
+        {
+            statusText.text = "Auth not initialized yet.";
+            return;
+        }
+
+        GoogleSignIn.Configuration = null;
+        GoogleSignIn.Configuration = googleConfig;
+
+        GoogleSignIn.DefaultInstance.SignIn().ContinueWith(task =>
+        {
+            if (task.IsCanceled)
+            {
+                statusText.text = "Google Sign-In cancelled.";
+                return;
+            }
+
+            if (task.IsFaulted)
+            {
+                statusText.text = "Google Sign-In failed.";
+                Debug.LogError(task.Exception);
+                return;
+            }
+
+            GoogleSignInUser googleUser = task.Result;
+
+            string idToken = googleUser.IdToken;
+
+            if (string.IsNullOrEmpty(idToken))
+            {
+                statusText.text = "Google ID token missing.";
+                return;
+            }
+
+            Credential credential =
+                GoogleAuthProvider.GetCredential(idToken, null);
+
+            auth.SignInWithCredentialAsync(credential)
+                .ContinueWithOnMainThread(firebaseTask =>
+                {
+                    if (firebaseTask.IsCompletedSuccessfully)
+                    {
+                        FirebaseUser firebaseUser = auth.CurrentUser;
+
+                        if (firebaseUser != null &&
+                            string.IsNullOrEmpty(firebaseUser.DisplayName) &&
+                            !string.IsNullOrEmpty(googleUser.DisplayName))
+                        {
+                            UserProfile profile = new UserProfile
+                            {
+                                DisplayName = googleUser.DisplayName
+                            };
+
+                            firebaseUser.UpdateUserProfileAsync(profile);
+                        }
+
+                        statusText.text = "Google Sign-In successful.";
+                        SceneManager.LoadScene("StartScene");
+                    }
+                    else
+                    {
+                        statusText.text = "Firebase Google auth failed.";
+                        Debug.LogError(firebaseTask.Exception);
+                    }
+                });
+        });
     }
 }
