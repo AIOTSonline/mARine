@@ -21,6 +21,9 @@ EditorBuildSettings:
     path: Assets/Scenes/FreeExplore.unity
     guid: 59aced77654ae1842a90698dade0b763
   - enabled: 1
+    path: Assets/Scenes/freeExploreEndless.unity
+    guid: 24df921ff523474381f8f70d8ad07e79
+  - enabled: 1
     path: Assets/Scenes/CustomCreate.unity
     guid: 8eb5333f975a49a47ae9eb896c1c9e2a
   - enabled: 1
