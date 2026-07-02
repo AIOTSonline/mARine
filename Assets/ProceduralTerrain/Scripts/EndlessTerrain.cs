@@ -91,11 +91,21 @@ public class EndlessTerrain : MonoBehaviour
     // Merges the legacy single-scatter slot and the extras into one list.
     ChunkDecorator[] CollectDecorators()
     {
+        // Safety net: if the Inspector reference was dropped (e.g. Unity can lose it
+        // when a component's base class changes on reimport), find the scatter in the
+        // scene so props still spawn instead of silently disappearing.
+        if (detailScatter == null) detailScatter = FindFirstObjectByType<TerrainDetailScatter>();
+
         var list = new List<ChunkDecorator>();
         if (detailScatter != null) list.Add(detailScatter);
         if (extraDecorators != null)
             foreach (var d in extraDecorators)
                 if (d != null && !list.Contains(d)) list.Add(d);
+
+        // Fallback: catch any other decorators (feature scatter, etc.) left unwired.
+        foreach (var d in FindObjectsByType<ChunkDecorator>(FindObjectsSortMode.None))
+            if (d != null && !list.Contains(d)) list.Add(d);
+
         return list.ToArray();
     }
 

@@ -3,28 +3,15 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 
-/// <summary>
-/// Simple, read-only "what's around the player" API for the AI / assistant.
-///
-///   World.GetCreatures(10);   // creatures within 10 m, nearest first
-///   World.GetEnvironment();   // depth, biome, temperature, visibility...
-///   World.GetPlayer();        // position, depth, heading
-///   World.Describe();         // one short sentence, ready to feed the LLM
-///
-/// No setup, no scene wiring, no singleton — every method just reads the current scene.
-/// Call it on demand (when the user asks the assistant), not every frame.
-/// </summary>
 public static class World
 {
-    // ---- tweak if you ever need to (optional) ----
-    public static string CreatureTag = "Actor";     // creatures are tagged this in the app
-    public static string PropTag     = "Obstacle";  // scattered corals/seaweed get this
+    public static string CreatureTag = "Actor";
+    public static string PropTag     = "Obstacle";
     public static float  DefaultRadius = 15f;
     public static int    MaxCreatures  = 12;
     public static int    MaxProps      = 10;
     public static float  DefaultWaterLevel = 8f;
 
-    // ---- data the AI reads (small & JSON-friendly) ----
     [Serializable] public struct PlayerState
     { public float depthMeters, headingDegrees; public string headingCompass; public float x, y, z; }
 
@@ -39,10 +26,6 @@ public static class World
 
     [Serializable] public class Snapshot
     { public PlayerState player; public EnvironmentData environment; public CreatureInfo[] creatures; public PropInfo[] props; public string summary; }
-
-    // =====================================================================
-    //  PUBLIC API
-    // =====================================================================
 
     public static PlayerState GetPlayer()
     {
@@ -75,7 +58,6 @@ public static class World
             biome = EstimateBiome(depth, seafloor),
             depthMeters = R(depth),
             seafloorDistanceMeters = seafloor,
-            waterTemperatureC = R(EstimateTemp(depth)),
             visibilityMeters = R(uw != null ? uw.fadeEnd : 20f),
             lightLevel = LightLevel(depth),
             waterColorHint = uw != null ? ColorHint(uw.waterColor) : "blue",
@@ -146,11 +128,8 @@ public static class World
         return s;
     }
 
-    /// Full structured snapshot as JSON (for logging / debug / future tool-calling).
     public static string ToJson(float radius = -1f) => JsonUtility.ToJson(GetSnapshot(radius), true);
 
-    /// One short sentence for the assistant. Returns "" in scenes that aren't an
-    /// ocean/terrain scene (no water system and nothing around) — so it's a safe no-op there.
     public static string Describe(float radius = -1f)
     {
         if (Cam == null) return "";
@@ -160,10 +139,6 @@ public static class World
         if (!oceanScene && snap.creatures.Length == 0) return "";
         return snap.summary;
     }
-
-    // =====================================================================
-    //  internals
-    // =====================================================================
 
     static Camera Cam => Camera.main;
 
@@ -180,7 +155,7 @@ public static class World
     {
         if (string.IsNullOrEmpty(tag)) return Array.Empty<GameObject>();
         try { return GameObject.FindGameObjectsWithTag(tag); }
-        catch { return Array.Empty<GameObject>(); } // tag not defined in this project
+        catch { return Array.Empty<GameObject>(); }
     }
 
     static string RelativeDir(Camera cam, Vector3 target)
@@ -189,7 +164,7 @@ public static class World
         if (to.sqrMagnitude < 0.0001f) return "right here";
         Vector3 fwd = cam.transform.forward; fwd.y = 0f;
         if (fwd.sqrMagnitude < 0.0001f) fwd = Vector3.forward;
-        float ang = Vector3.SignedAngle(fwd.normalized, to.normalized, Vector3.up); // + = right
+        float ang = Vector3.SignedAngle(fwd.normalized, to.normalized, Vector3.up);
         float a = Mathf.Abs(ang);
         string side = ang >= 0 ? "right" : "left";
         if (a < 25f) return "ahead";

@@ -86,10 +86,39 @@ public class TerrainDetailScatter : ChunkDecorator
     [Header("Scatter rules")]
     public ScatterRule[] rules;
 
+    [Header("Collision")]
+    [Tooltip("Off (default): scattered props are pure decoration and never block movement — " +
+             "any collider they imported with is stripped, so swimmers/characters pass through " +
+             "them instead of getting wedged. On: keep props solid.")]
+    public bool propsBlockMovement = false;
+
     const float GoldenAngle = 2.39996323f;
     static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     MaterialPropertyBlock _mpb;
     int[] _paletteBuf;
+    bool _validated;
+    bool _loggedFirst;
+
+    // One-time sanity report so a broken setup is obvious in the Console instead of a silent
+    // empty world: warns about enabled rules whose member prefabs are all null/missing.
+    void ValidateRulesOnce()
+    {
+        if (_validated) return;
+        _validated = true;
+        if (rules == null) return;
+        for (int r = 0; r < rules.Length; r++)
+        {
+            var rule = rules[r];
+            if (rule == null || !rule.enabled) continue;
+            int valid = 0;
+            if (rule.members != null)
+                for (int m = 0; m < rule.members.Length; m++) if (rule.members[m] != null) valid++;
+            if (valid == 0)
+                Debug.LogWarning($"[TerrainDetailScatter] Rule '{rule.name}' is enabled but has NO valid member " +
+                                 $"prefabs (all slots null/missing) — nothing will spawn for it. Re-assign the " +
+                                 $"coral/seaweed model prefabs in this component's Inspector.", this);
+        }
+    }
 
     void OnValidate()
     {
@@ -106,6 +135,8 @@ public class TerrainDetailScatter : ChunkDecorator
                                              float worldHalfSize, Collider surface, Transform parent)
     {
         if (rules == null || rules.Length == 0 || surface == null) return null;
+
+        ValidateRulesOnce();
 
         var rng = new System.Random(HashChunk(chunkX, chunkZ, seed)); // deterministic per chunk
         GameObject root = null;
@@ -129,6 +160,14 @@ public class TerrainDetailScatter : ChunkDecorator
                                              rng, parent, ref root, chunkX, chunkZ,
                                              maxPropsPerChunk - spawned);
             }
+        }
+
+        if (!_loggedFirst)
+        {
+            _loggedFirst = true;
+            Debug.Log($"[TerrainDetailScatter] first populated chunk ({chunkX},{chunkZ}) spawned {spawned} prop(s). " +
+                      $"0 with member warnings above = broken prefab refs; 0 with no warnings = rules/mask/slope " +
+                      $"rejecting everything; >0 = props are spawning (check scale/visibility).", this);
         }
 
         return root;
@@ -220,6 +259,14 @@ public class TerrainDetailScatter : ChunkDecorator
         GameObject go = Instantiate(prefab);
         Transform tr = go.transform;
         tr.SetParent(root, true);
+
+        // Decoration must never block a swimmer/character. Strip any colliders the source
+        // model imported with (this is what caused the player to get stuck "between rocks").
+        if (!propsBlockMovement)
+        {
+            var cols = go.GetComponentsInChildren<Collider>(true);
+            for (int c = 0; c < cols.Length; c++) Destroy(cols[c]);
+        }
 
         if (rule.showOnMinimap)
             go.AddComponent<MinimapMarker>().color = rule.minimapColor;

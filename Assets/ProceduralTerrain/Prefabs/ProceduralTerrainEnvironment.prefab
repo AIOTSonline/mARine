@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1730000002}
+  - component: {fileID: 1730000052}
   m_Layer: 0
   m_Name: ProceduralTerrainEnvironment
   m_TagString: Untagged
@@ -33,6 +34,44 @@ Transform:
   - {fileID: 1730000021}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1730000052
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1730000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f695b450481e4ae2888d4e2a88818f04, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  trackedCamera: {fileID: 0}
+  scanRadius: 18
+  refreshHz: 8
+  headingUp: 1
+  layerHeight: 2
+  visibleLayerRange: 1
+  useRegistry: 1
+  scanPhysicsByTag: 0
+  physicsMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  tagStyles: []
+  radarArea: {fileID: 0}
+  radarPixelRadius: 95
+  cornerOffset: {x: -130, y: -130}
+  clusterCellPixels: 22
+  baseBlipSize: 10
+  sizePerExtra: 3
+  densityCap: 8
+  glyphLevel: ●
+  glyphAbove: ▲
+  glyphBelow: ▼
+  fallbackColor: {r: 0.4, g: 0.9, b: 1, a: 1}
+  playerColor: {r: 1, g: 0.92, b: 0.2, a: 1}
+  playerSize: 16
+  playerGlyph: ▲
 --- !u!1 &1730000010
 GameObject:
   m_ObjectHideFlags: 0
@@ -78,7 +117,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 24da86387d45c43438e608bf0142845a, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MapGenerator
   drawMode: 2
   normalizeMode: 1
@@ -142,7 +181,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8e505d31e5b0ae347b1357f789c8779e, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EndlessTerrain
   detailLevels:
   - lod: 0
@@ -163,7 +202,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3d4a5a09bc8d4609a041c19925796cf8, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UnderwaterEnvironment
   waterColor: {r: 0.015, g: 0.46, b: 0.595, a: 1}
   surfaceGlowColor: {r: 0.33, g: 0.78, b: 0.85, a: 1}
@@ -188,65 +227,64 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a273e148ac8e4c1a97331573a694da36, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TerrainDetailScatter
   seed: 1337
-  placementDistance: 16
-  placementHysteresis: 4
+  placementDistance: 13
+  placementHysteresis: 2
   castShadows: 0
   maxPropsPerChunk: 240
-  clustersPerChunk: 1.5
   useGardenMask: 1
   gardenScale: 0.05
   gardenThreshold: 0.4
   gardenSharpness: 0.25
   unifyMaterial: {fileID: 0}
-  waterTint: 0
+  waterTint: 0.18
   waterTintColor: {r: 0.45, g: 0.72, b: 0.78, a: 1}
-  clusters:
-  - name: Coral Mound
+  rules:
+  - name: Seaweed patch
     enabled: 1
+    mode: 0
     members:
-    - {fileID: 919132149155446097, guid: 9e3ad902ebec54482ac68613dabb60a8, type: 3}
-    - {fileID: 919132149155446097, guid: dae98b22611e54fb8953794c74647a89, type: 3}
-    - {fileID: 919132149155446097, guid: 713a01decd08a4dcdb19629fb8430125, type: 3}
-    - {fileID: 919132149155446097, guid: c9960ef8b65e9430ea4e7d4cccd4ff4e, type: 3}
-    weight: 1
+    - {fileID: 919132149155446097, guid: 56e094ea4384f44f0ae5b82b75bb9bc9, type: 3}
+    paletteSize: {x: 1, y: 1}
+    densityPerChunk: 2
+    respectGardenMask: 1
+    minSlope: 0
+    maxSlope: 40
+    heightRange: {x: -1000, y: 1000}
+    sizeMeters: {x: 0.6, y: 1.2}
+    alignToNormal: 0.3
+    randomTilt: 10
+    embed: 0.05
+    countRange: {x: 4, y: 8}
+    radius: 0.8
+    radiusJitter: 0.3
+    domeHeight: 0.15
+    domeJitter: 0.3
+    centerScaleBoost: 1.2
+  - name: Coral reef
+    enabled: 1
+    mode: 0
+    members:
+    - {fileID: 919132149155446097, guid: c559288f2682c45249913f92b9ba8bca, type: 3}
+    - {fileID: 919132149155446097, guid: 46c320a50a2c647dd896c3416057468d, type: 3}
+    paletteSize: {x: 1, y: 2}
+    densityPerChunk: 1
+    respectGardenMask: 1
     minSlope: 0
     maxSlope: 35
-    heightRange: {x: -100, y: 100}
-    countRange: {x: 18, y: 32}
-    radius: 2.2
-    domeHeight: 0.9
-    radiusJitter: 0.3
-    domeJitter: 0.35
-    paletteSize: {x: 2, y: 3}
-    scaleRange: {x: 0.5, y: 1.2}
-    centerScaleBoost: 1.8
+    heightRange: {x: -1000, y: 1000}
+    sizeMeters: {x: 0.4, y: 1}
     alignToNormal: 0.15
-    randomTilt: 10
+    randomTilt: 8
     embed: 0.06
-  - name: Coral Field
-    enabled: 1
-    members:
-    - {fileID: 919132149155446097, guid: 03df60dd2248e4f1da9d959686e88944, type: 3}
-    - {fileID: 919132149155446097, guid: 9e3ad902ebec54482ac68613dabb60a8, type: 3}
-    - {fileID: 919132149155446097, guid: e23d39b2b8b1b407d9efe5c8db9e7d43, type: 3}
-    weight: 0.8
-    minSlope: 0
-    maxSlope: 28
-    heightRange: {x: -100, y: 100}
     countRange: {x: 10, y: 18}
-    radius: 2.2
-    domeHeight: 0.7
+    radius: 1.6
     radiusJitter: 0.3
-    domeJitter: 0.173
-    paletteSize: {x: 1, y: 2}
-    scaleRange: {x: 0.6, y: 1}
-    centerScaleBoost: 1.2
-    alignToNormal: 0.2
-    randomTilt: 14
-    embed: 0.06
+    domeHeight: 0.5
+    domeJitter: 0.3
+    centerScaleBoost: 1.5
 --- !u!1 &1730000020
 GameObject:
   m_ObjectHideFlags: 0
@@ -348,7 +386,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6604895f3927b4e60bbd52ed95f58ab1, type: 3}
-  m_Name:
+  m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WaterSurface
   viewer: {fileID: 0}
   waterLevel: 20
