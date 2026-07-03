@@ -32,6 +32,7 @@ Transform:
   m_Children:
   - {fileID: 1730000011}
   - {fileID: 1730000021}
+  - {fileID: 17819697263936484}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1730000052
@@ -44,8 +45,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f695b450481e4ae2888d4e2a88818f04, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   trackedCamera: {fileID: 0}
   scanRadius: 18
   refreshHz: 8
@@ -65,13 +66,13 @@ MonoBehaviour:
   baseBlipSize: 10
   sizePerExtra: 3
   densityCap: 8
-  glyphLevel: ●
-  glyphAbove: ▲
-  glyphBelow: ▼
+  glyphLevel: "\u25CF"
+  glyphAbove: "\u25B2"
+  glyphBelow: "\u25BC"
   fallbackColor: {r: 0.4, g: 0.9, b: 1, a: 1}
   playerColor: {r: 1, g: 0.92, b: 0.2, a: 1}
   playerSize: 16
-  playerGlyph: ▲
+  playerGlyph: "\u25B2"
 --- !u!1 &1730000010
 GameObject:
   m_ObjectHideFlags: 0
@@ -128,6 +129,15 @@ MonoBehaviour:
   lacunarity: 2
   seed: 0
   offset: {x: 0, y: 0}
+  terrainStyle:
+    style: 0
+    warpStrength: 6
+    warpScale: 2.5
+    ridgeWeight: 0.55
+    ridgeSharpness: 2.2
+    terraceSteps: 5
+    terraceSharpness: 4
+    terraceStrength: 0.65
   meshHeightMultiplier: 3.5
   meshHeightCurve:
     serializedVersion: 2
@@ -192,6 +202,7 @@ MonoBehaviour:
     visibleDstThreshold: 128
   viewer: {fileID: 0}
   detailScatter: {fileID: 1730000015}
+  extraDecorators: []
 --- !u!114 &1730000014
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -229,9 +240,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a273e148ac8e4c1a97331573a694da36, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TerrainDetailScatter
-  seed: 1337
   placementDistance: 13
   placementHysteresis: 2
+  seed: 1337
   castShadows: 0
   maxPropsPerChunk: 240
   useGardenMask: 1
@@ -257,6 +268,8 @@ MonoBehaviour:
     alignToNormal: 0.3
     randomTilt: 10
     embed: 0.05
+    showOnMinimap: 1
+    minimapColor: {r: 0.5, g: 1, b: 0.65, a: 1}
     countRange: {x: 4, y: 8}
     radius: 0.8
     radiusJitter: 0.3
@@ -279,12 +292,15 @@ MonoBehaviour:
     alignToNormal: 0.15
     randomTilt: 8
     embed: 0.06
+    showOnMinimap: 1
+    minimapColor: {r: 0.5, g: 1, b: 0.65, a: 1}
     countRange: {x: 10, y: 18}
     radius: 1.6
     radiusJitter: 0.3
     domeHeight: 0.5
     domeJitter: 0.3
     centerScaleBoost: 1.5
+  propsBlockMovement: 0
 --- !u!1 &1730000020
 GameObject:
   m_ObjectHideFlags: 0
@@ -393,3 +409,34 @@ MonoBehaviour:
   planeHalfSize: 50
   resolution: 96
   waterMaterial: {fileID: 2100000, guid: 27206014df59456882bc5f70fee391eb, type: 2}
+--- !u!1 &953656309409126619
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 17819697263936484}
+  m_Layer: 0
+  m_Name: CameraAnchor
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &17819697263936484
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 953656309409126619}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 4, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1730000002}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

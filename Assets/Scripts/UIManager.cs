@@ -11,7 +11,7 @@ public class UIManager : MonoBehaviour
 
     public void LoadFreeExploreEcosystem()
     {
-        SceneManager.LoadScene("FreeExploreEndless");
+        SceneManager.LoadScene("FreeExploreConfig");
     }
 
     public void LoadModuleWise()
