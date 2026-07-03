@@ -189,6 +189,9 @@ public class EndlessTerrain : MonoBehaviour
             float viewerDst = Mathf.Sqrt(_bounds.SqrDistance(ViewerPosition));
             bool  visible   = viewerDst <= MaxViewDst;
 
+            
+            SetVisible(visible);
+
             if (visible)
             {
                 int lodIndex = 0;
@@ -223,8 +226,6 @@ public class EndlessTerrain : MonoBehaviour
                 UpdateDetails(viewerDst);
                 _chunksVisibleLastUpdate.Add(this);
             }
-
-            SetVisible(visible);
         }
 
         // Build props when the viewer is near (and the LOD0 collider exists),
