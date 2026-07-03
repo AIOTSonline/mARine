@@ -189,6 +189,16 @@ public class EndlessTerrain : MonoBehaviour
             float viewerDst = Mathf.Sqrt(_bounds.SqrDistance(ViewerPosition));
             bool  visible   = viewerDst <= MaxViewDst;
 
+            // Activate the chunk (and register its MeshCollider with the physics
+            // scene) BEFORE UpdateDetails runs its ground raycasts. UpdateVisibleChunks
+            // hides every chunk at the top of each pass, so while the viewer is moving
+            // the collider is inactive at this point — and Collider.Raycast always fails
+            // against an inactive collider, so PopulateChunk seated nothing and latched
+            // the chunk as "built". That is why props filled the stationary spawn area
+            // but never streamed in as the player swam. Showing the chunk first keeps
+            // the collider live for the raycasts.
+            SetVisible(visible);
+
             if (visible)
             {
                 int lodIndex = 0;
@@ -223,8 +233,6 @@ public class EndlessTerrain : MonoBehaviour
                 UpdateDetails(viewerDst);
                 _chunksVisibleLastUpdate.Add(this);
             }
-
-            SetVisible(visible);
         }
 
         // Build props when the viewer is near (and the LOD0 collider exists),
