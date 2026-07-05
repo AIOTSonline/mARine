@@ -11,6 +11,13 @@ public class WaterSurface : MonoBehaviour
 
     void Awake()
     {
+        Rebuild();
+    }
+
+    // Rebuilds the water plane from the current waterLevel/resolution. EnvironmentLoader
+    // sets those fields from the profile, then calls this. Safe to call at runtime.
+    public void Rebuild()
+    {
         GetComponent<MeshFilter>().sharedMesh = BuildPlaneMesh(resolution, planeHalfSize);
 
         MeshRenderer mr = GetComponent<MeshRenderer>();

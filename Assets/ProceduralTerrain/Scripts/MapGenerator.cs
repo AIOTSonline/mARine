@@ -2,6 +2,7 @@
 using System;
 using System.Threading;
 using System.Collections.Generic;
+using CreateEnv;
 
 // Generates heightmaps off-thread and dispatches results to the main thread.
 // mapChunkSize 33 = 32 segments; valid LODs are 0, 1, 2, 4 (not 3).
@@ -70,6 +71,27 @@ public class MapGenerator : MonoBehaviour
                         BuildColourMap(mapData.HeightMap), mapChunkSize, mapChunkSize));
                 break;
         }
+    }
+
+    // ── Create-Env: apply a data profile (called once by EnvironmentLoader) ──
+    // Writes every terrain-shape field from the profile. The height curve and the
+    // TerrainShaper preset come from BiomeStyles (locked per style), so a user can
+    // never supply a curve/shaper combination that produces NaN or inverted terrain.
+    // normalizeMode is forced to Global — Local mode breaks chunk-seam matching.
+    public void ApplyProfile(EnvironmentProfile p)
+    {
+        if (p == null) return;
+
+        normalizeMode        = Noise.NormalizeMode.Global;
+        noiseScale           = p.noiseScale;
+        octaves              = p.octaves;
+        persistance          = p.persistance;
+        lacunarity           = p.lacunarity;
+        seed                 = p.seed;
+        offset               = new Vector2(p.offsetX, p.offsetY);
+        meshHeightMultiplier = p.meshHeightMultiplier;
+        meshHeightCurve      = BiomeStyles.BuildHeightCurve(p.styleIndex);
+        terrainStyle         = BiomeStyles.BuildShaper(p);
     }
 
     // ── Public threading API ─────────────────────────────────────────────────
