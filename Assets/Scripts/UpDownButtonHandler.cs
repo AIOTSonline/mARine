@@ -2,16 +2,6 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 
 
-// Attach this to the Up button and the Down button in your AR Canvas.
-// Implements press-and-hold so the player keeps swimming while the
-// button is held, and stops the moment it's released.
- 
-// SETUP:
-//   1. Add this component to the Up button GameObject
-//   2. Set Direction = Up
-//   3. Drag the player's MovementController reference (or leave empty —
-//      it will auto-find the main player by tag "Actor" + has MovementController)
-//   4. Repeat for the Down button with Direction = Down
 
 public class UpDownButtonHandler : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 {

@@ -11,9 +11,12 @@ public class FoodConsumer : MonoBehaviour
     private float currentSpeed = 1.5f;
     private float huntSuccessChance = 0.6f;
 
-    // Stun/slow state — set by CamouflageAbility.DebuffPredator()
     private bool isStunned = false;
     private bool isSlowed = false;
+
+    // Cached references — set once at first use
+    private AutonomousMovement autoMove;
+    private HungerSystem hungerSystem;
 
     private float checkTimer = 0f;
     private const float huntCheckInterval = 0.3f;
@@ -34,8 +37,6 @@ public class FoodConsumer : MonoBehaviour
     }
 
   
-    // Stun / Slow API — called by CamouflageAbility
-
     public void SetStunned(bool stunned)
     {
         isStunned = stunned;
@@ -46,7 +47,7 @@ public class FoodConsumer : MonoBehaviour
         }
     }
 
-
+  
     public void ApplySlow(float multiplier)
     {
         isSlowed = true;
@@ -64,12 +65,25 @@ public class FoodConsumer : MonoBehaviour
 
     public bool IsStunned => isStunned;
 
-  
-    // Runtime
 
     void Update()
     {
         if (isStunned) return;
+
+        // Hunger gate — only hunt when actually hungry
+        // When full, predator ignores prey completely (friendly neighbor behavior)
+        if (hungerSystem == null) hungerSystem = GetComponent<HungerSystem>();
+        if (hungerSystem != null && !hungerSystem.CanHunt)
+        {
+            // Not hungry — drop any existing target and stop chasing
+            if (currentTarget != null)
+            {
+                currentTarget = null;
+                if (autoMove == null) autoMove = GetComponent<AutonomousMovement>();
+                autoMove?.Resume(); // return to peaceful wandering
+            }
+            return;
+        }
 
         checkTimer += Time.deltaTime;
         if (checkTimer >= huntCheckInterval)
@@ -147,6 +161,10 @@ public class FoodConsumer : MonoBehaviour
     {
         if (currentTarget == null) return;
 
+        // Suspend autonomous wandering while actively hunting
+        if (autoMove == null) autoMove = GetComponent<AutonomousMovement>();
+        autoMove?.Suspend();
+
         float dist = Vector3.Distance(transform.position, currentTarget.transform.position);
 
         if (dist <= consumeDistance)
@@ -173,7 +191,10 @@ public class FoodConsumer : MonoBehaviour
         {
             Debug.Log($"[FoodConsumer] {gameObject.name} missed! " +
                       $"(chance={huntSuccessChance:P0})");
-            currentTarget = null; // lose target, will re-acquire next scan
+            currentTarget = null;
+            // Resume wandering briefly after a miss
+            if (autoMove == null) autoMove = GetComponent<AutonomousMovement>();
+            autoMove?.Resume();
             return;
         }
 
@@ -185,6 +206,14 @@ public class FoodConsumer : MonoBehaviour
 
         Destroy(currentTarget);
         currentTarget = null;
+
+        // Reset hunger after eating
+        if (hungerSystem == null) hungerSystem = GetComponent<HungerSystem>();
+        hungerSystem?.Feed();
+
+        // Resume autonomous wandering now that hunt is done
+        if (autoMove == null) autoMove = GetComponent<AutonomousMovement>();
+        autoMove?.Resume();
     }
 
     void OnDrawGizmosSelected()

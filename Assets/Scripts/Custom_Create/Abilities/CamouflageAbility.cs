@@ -49,7 +49,7 @@ public class CamouflageAbility : ActorAbility
     }
 
     
-    // MODE 1: Manual toggle (main player UI button)
+
    
     public override void Activate()
     {
@@ -63,13 +63,7 @@ public class CamouflageAbility : ActorAbility
     }
 
     
-    // MODE 2: Auto-defense (non-main player, called by FleeFromPredator)
- 
-    // Called by FleeFromPredator when a predator is detected nearby.
-    // Rolls defenseTriggerChance — on success, activates camouflage AND
-    // debuffs the predator (stun then slow).
-    // Returns true if defense triggered successfully.
-    
+
     public bool TriggerDefense(GameObject predator)
     {
         // Already active or fading — don't re-trigger
