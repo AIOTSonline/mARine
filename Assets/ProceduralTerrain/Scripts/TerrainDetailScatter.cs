@@ -1,4 +1,5 @@
 using UnityEngine;
+using CreateEnv;
 
 // Scatters props onto streamed terrain chunks. Each rule places its prefabs in one of two ways:
 //   Cluster   – packs members into a domed mound (reefs, dense seaweed patches)
@@ -60,6 +61,11 @@ public class TerrainDetailScatter : ChunkDecorator
         [Range(0f, 0.6f)] public float domeJitter = 0.3f;
         [Tooltip("Extra scale on the centre item (1 = none). Builds a size hierarchy.")]
         public float centerScaleBoost = 1.4f;
+
+        // Value-copy for the Create-Env loader: lets us reuse a Life Pack's rule
+        // (with its shared prefab list) while overriding densityPerChunk without
+        // mutating the source asset.
+        public ScatterRule ShallowClone() => (ScatterRule)MemberwiseClone();
     }
 
     [Header("Seed / streaming")]
@@ -98,6 +104,41 @@ public class TerrainDetailScatter : ChunkDecorator
     int[] _paletteBuf;
     bool _validated;
     bool _loggedFirst;
+
+    // ── Create-Env: apply a Life Pack + per-species density (called by loader) ──
+    // Rebuilds rules[] from the chosen pack, scaling each rule's density by the
+    // global multiplier and its per-species multiplier. Everything remains bounded
+    // by maxPropsPerChunk, so no pack/density combination can overload a chunk.
+    // A null pack clears all life (the "None" option).
+    public void ApplyLifePack(LifePackLibrary.Pack pack, float globalDensity,
+                              float[] speciesDensity, int maxProps, bool shadows,
+                              float tint, int scatterSeed)
+    {
+        castShadows      = shadows;
+        waterTint        = tint;
+        seed             = scatterSeed;
+        maxPropsPerChunk = Mathf.Max(0, maxProps);
+
+        if (pack == null || pack.rules == null || pack.rules.Length == 0)
+        {
+            rules = new ScatterRule[0];
+            _validated = false;
+            return;
+        }
+
+        var built = new ScatterRule[pack.rules.Length];
+        for (int i = 0; i < pack.rules.Length; i++)
+        {
+            ScatterRule src = pack.rules[i];
+            ScatterRule r = (src != null) ? src.ShallowClone() : new ScatterRule();
+            float perSpecies = (speciesDensity != null && i < speciesDensity.Length)
+                               ? speciesDensity[i] : 1f;
+            r.densityPerChunk = Mathf.Max(0f, r.densityPerChunk * globalDensity * perSpecies);
+            built[i] = r;
+        }
+        rules = built;
+        _validated = false; // re-run the one-time sanity report for the new rules
+    }
 
     // One-time sanity report so a broken setup is obvious in the Console instead of a silent
     // empty world: warns about enabled rules whose member prefabs are all null/missing.

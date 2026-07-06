@@ -6,6 +6,7 @@ using UnityEngine.XR.ARSubsystems;
 public class EnvironmentPlacementManager : MonoBehaviour
 {
     [SerializeField] private ARRaycastManager raycastManager;
+    [SerializeField] private ARPlaneManager planeManager;
 
     private static readonly List<ARRaycastHit> hits = new();
 
@@ -15,6 +16,8 @@ public class EnvironmentPlacementManager : MonoBehaviour
     {
         if (raycastManager == null)
             raycastManager = FindFirstObjectByType<ARRaycastManager>();
+        if (planeManager == null)
+            planeManager = FindFirstObjectByType<ARPlaneManager>();
 
         if (raycastManager == null)
         {
@@ -98,6 +101,21 @@ public class EnvironmentPlacementManager : MonoBehaviour
 
         hasPlaced = true;
 
+        // Environment is down — stop scanning: turn off plane detection and hide the
+        // detected planes so the camera no longer highlights surfaces or offers to
+        // re-spawn. (Same pattern as ARPlacementController in custom-create.)
+        StopPlaneDetection();
+
         Debug.Log("[Placement] Environment placed successfully.");
+    }
+
+    private void StopPlaneDetection()
+    {
+        if (planeManager != null)
+        {
+            planeManager.enabled = false;
+            foreach (var plane in planeManager.trackables)
+                plane.gameObject.SetActive(false);
+        }
     }
 }

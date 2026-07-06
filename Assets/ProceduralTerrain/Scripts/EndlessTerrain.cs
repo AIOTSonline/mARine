@@ -13,6 +13,9 @@ public class EndlessTerrain : MonoBehaviour
 
     public LODInfo[]  detailLevels;
     public Transform  viewer;
+    [Tooltip("On (default): stream immediately on Start, like the original scenes. " +
+             "Off: wait for EnvironmentLoader.Initialize() so a profile is applied first.")]
+    public bool autoStart = true;
     [Tooltip("Optional: scatters prefab props (coral/seaweed) on near chunks. Leave empty to disable.")]
     public TerrainDetailScatter detailScatter;
     [Tooltip("Optional: additional chunk decorators (rock formations, kelp, ...).")]
@@ -33,8 +36,21 @@ public class EndlessTerrain : MonoBehaviour
     static   List<TerrainChunk>                _chunksVisibleLastUpdate = new List<TerrainChunk>();
     readonly List<Vector2>                     _chunksToDestroy         = new List<Vector2>();
 
+    bool _initialized;
+
     void Start()
     {
+        if (autoStart) Initialize();
+    }
+
+    // Idempotent streaming bootstrap. EnvironmentLoader calls this AFTER it has
+    // configured MapGenerator + assigned detailLevels, so chunks are never built
+    // from stale/default parameters. Safe to call more than once.
+    public void Initialize()
+    {
+        if (_initialized) return;
+        _initialized = true;
+
         _mapGenerator  = FindFirstObjectByType<MapGenerator>();
         _decorators    = CollectDecorators();
         MaxViewDst    = detailLevels[detailLevels.Length - 1].visibleDstThreshold;
@@ -45,6 +61,29 @@ public class EndlessTerrain : MonoBehaviour
         _sqrCullDistance = cullDst * cullDst;
 
         UpdateVisibleChunks();
+    }
+
+    // View-distance presets (index 0 Near, 1 Medium, 2 Far). The last threshold is
+    // the world-reach used by EnvironmentBounds invariant I-2 (fog hides the edge).
+    // Raw LOD tables are deliberately not user-editable — a bad table means missing
+    // colliders or a frame-rate cliff.
+    public static LODInfo[] BuildViewDistance(int index)
+    {
+        switch (Mathf.Clamp(index, 0, 2))
+        {
+            case 0: return new[] { // Near — reach 96 (24 m)
+                new LODInfo { lod = 0, visibleDstThreshold = 48f },
+                new LODInfo { lod = 1, visibleDstThreshold = 72f },
+                new LODInfo { lod = 2, visibleDstThreshold = 96f } };
+            case 2: return new[] { // Far — reach 256 (64 m)
+                new LODInfo { lod = 0, visibleDstThreshold = 80f },
+                new LODInfo { lod = 1, visibleDstThreshold = 160f },
+                new LODInfo { lod = 2, visibleDstThreshold = 256f } };
+            default: return new[] { // Medium — reach 160 (40 m)
+                new LODInfo { lod = 0, visibleDstThreshold = 64f },
+                new LODInfo { lod = 1, visibleDstThreshold = 112f },
+                new LODInfo { lod = 2, visibleDstThreshold = 160f } };
+        }
     }
 
     void Update()
