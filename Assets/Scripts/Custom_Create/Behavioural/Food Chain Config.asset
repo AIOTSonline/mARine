@@ -17,10 +17,34 @@ MonoBehaviour:
     foodChainTier: 3
     displayName: octo_yelo
     additionalBehaviours: []
+    preferredLayerIndex: 0
+    wanderYRange: 0.5
+    wanderSpeed: 0.4
+    settleSpeed: 0.3
+    settleTime: 45
+    wanderDirectionChangeInterval: 3
+    maxHunger: 100
+    hungerDepletionRate: 2
+    huntHungerThreshold: 40
+    slowHungerThreshold: 50.2
+    starvingSpeedMultiplier: 0.5
+    diesWhenStarving: 0
   - prefabName: sharky
     foodChainTier: 4
     displayName: sharky
     additionalBehaviours: []
+    preferredLayerIndex: 0
+    wanderYRange: 5
+    wanderSpeed: 0.5
+    settleSpeed: 0.5
+    settleTime: 45
+    wanderDirectionChangeInterval: 3
+    maxHunger: 100
+    hungerDepletionRate: 2
+    huntHungerThreshold: 21
+    slowHungerThreshold: 30
+    starvingSpeedMultiplier: 0.5
+    diesWhenStarving: 1
   huntTierDifference: 1
   fleeTierDifference: 1
   huntDetectionRadius: 1.5

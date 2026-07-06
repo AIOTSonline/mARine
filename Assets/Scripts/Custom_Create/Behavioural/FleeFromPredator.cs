@@ -19,6 +19,7 @@ public class FleeFromPredator : MonoBehaviour
     // Cooldown so defense ability isn't spammed every check
     private float defenseCooldown = 0f;
     private const float defenseCooldownDuration = 6f;
+    private AutonomousMovement autoMove;
 
     public void Initialize(int tier, int tierDifference, float detectionRadius, float speed,
                            float escape = 0.7f)
@@ -103,8 +104,13 @@ public class FleeFromPredator : MonoBehaviour
 
         isFleeing = true;
         fleeTimer = fleeDuration;
+
+        // Suspend autonomous wandering while fleeing
+        if (autoMove == null) autoMove = GetComponent<AutonomousMovement>();
+        autoMove?.Suspend();
     }
 
+   
     void TryTriggerDefense(GameObject predator)
     {
         ActorAbility[] abilities = GetComponents<ActorAbility>();
@@ -132,6 +138,9 @@ public class FleeFromPredator : MonoBehaviour
         {
             isFleeing = false;
             fleeDirection = Vector3.zero;
+            // Resume autonomous wandering after flee ends
+            if (autoMove == null) autoMove = GetComponent<AutonomousMovement>();
+            autoMove?.Resume();
             return;
         }
 

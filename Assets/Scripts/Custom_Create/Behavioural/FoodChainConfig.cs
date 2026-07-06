@@ -1,7 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
 
-
 [CreateAssetMenu(menuName = "MarineAR/Food Chain Config")]
 public class FoodChainConfig : ScriptableObject
 {
@@ -18,9 +17,56 @@ public class FoodChainConfig : ScriptableObject
         [Tooltip("Human-readable species name shown in UI (e.g. 'Great White Shark')")]
         public string displayName;
 
-        [Tooltip("Additional behaviour class names to attach beyond tier-based ones. " +
-                 "e.g. 'PatrolBehaviour', 'SchoolingBehaviour'")]
+        [Tooltip("Additional behaviour class names to attach beyond tier-based ones.")]
         public List<string> additionalBehaviours = new List<string>();
+
+        [Header("Preferred Habitat")]
+        [Tooltip("Which layer index this species naturally inhabits. " +
+                 "0 = surface, higher = deeper. Actor drifts here over settleTime seconds.")]
+        public int preferredLayerIndex = 0;
+
+        [Tooltip("How far above/below the preferred layer Y the actor can wander (Unity units). " +
+                 "e.g. 0.5 = stays within half a unit of its preferred depth.")]
+        public float wanderYRange = 0.5f;
+
+        [Header("Movement")]
+        [Tooltip("Speed while wandering (idle state, not hunting or fleeing)")]
+        public float wanderSpeed = 0.4f;
+
+        [Tooltip("Speed while drifting toward preferred layer at spawn")]
+        public float settleSpeed = 0.3f;
+
+        [Tooltip("How many seconds to drift toward preferred layer before switching to wander. " +
+                 "Randomized ± 15s around this value.")]
+        public float settleTime = 45f;
+
+        [Tooltip("How often (seconds) the actor picks a new wander direction")]
+        public float wanderDirectionChangeInterval = 3f;
+
+        [Header("Hunger")]
+        [Tooltip("Maximum hunger value. Depletes from this to 0 over time.")]
+        public float maxHunger = 100f;
+
+        [Tooltip("How much hunger depletes per second when not eating.")]
+        public float hungerDepletionRate = 2f;
+
+        [Tooltip("Hunger value below which the actor STARTS hunting. " +
+                 "Above this = full, ignores prey and lives peacefully. " +
+                 "Below this = hungry, will actively seek and eat prey. " +
+                 "Default 70 means the actor hunts when at 70% hunger or less.")]
+        [Range(0f, 100f)]
+        public float huntHungerThreshold = 70f;
+
+        [Tooltip("Hunger value below which the actor starts slowing down (0-maxHunger). " +
+                 "Should be lower than huntHungerThreshold.")]
+        public float slowHungerThreshold = 30f;
+
+        [Tooltip("Speed multiplier applied when hunger is below slowHungerThreshold. " +
+                 "0.5 = half speed when starving.")]
+        public float starvingSpeedMultiplier = 0.5f;
+
+        [Tooltip("If true, actor dies (is destroyed) when hunger reaches 0.")]
+        public bool diesWhenStarving = true;
     }
 
     [Header("Species Registry")]
@@ -84,26 +130,22 @@ public class FoodChainConfig : ScriptableObject
     public bool autoAssignFleeBehaviour = true;
 
 
-    // Lookup helpers
-
     public SpeciesEntry GetEntry(string prefabName)
     {
         return species.Find(s => s.prefabName == prefabName);
     }
 
-    
     public int GetTier(string prefabName)
     {
         SpeciesEntry entry = GetEntry(prefabName);
         return entry != null ? entry.foodChainTier : 1;
     }
 
-
+ 
     public bool ShouldHunt(int predatorTier, int preyTier)
     {
         return predatorTier - preyTier >= huntTierDifference;
     }
-
 
     public bool ShouldFlee(int preyTier, int predatorTier)
     {
@@ -114,5 +156,18 @@ public class FoodChainConfig : ScriptableObject
     {
         SpeciesEntry entry = GetEntry(prefabName);
         return entry?.additionalBehaviours ?? new List<string>();
+    }
+
+   
+    public float GetPreferredWorldY(string prefabName, float rootY,
+                                    int totalLayers, float layerSpacing, float bottomLayerY)
+    {
+        SpeciesEntry entry = GetEntry(prefabName);
+        int layerIdx = entry != null ? entry.preferredLayerIndex : 0;
+        layerIdx = Mathf.Clamp(layerIdx, 0, totalLayers - 1);
+
+        float topY = bottomLayerY + (totalLayers - 1) * layerSpacing;
+        float localY = topY - (layerIdx * layerSpacing);
+        return rootY + localY;
     }
 }
