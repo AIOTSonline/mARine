@@ -6,5 +6,9 @@ namespace CreateEnv
     public static class EnvironmentSession
     {
         public static EnvironmentProfile Selected;
+
+        // Set by FreeExploreConfig's Edit button before loading the builder scene;
+        // StartScreenUI consumes (and clears) it to open the editor pre-filled.
+        public static string EditRequestId;
     }
 }
