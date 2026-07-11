@@ -195,10 +195,6 @@ public class LayerManager : MonoBehaviour
         return new List<GameObject>();
     }
 
-    // -------------------------------------------------------
-    // LAYER SWITCHING
-    // -------------------------------------------------------
-
     public void NextLayer()
     {
         if (isEditMode)

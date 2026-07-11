@@ -127,6 +127,7 @@ public class ARPlacementController : MonoBehaviour
 
         bool mainPlayerFound = false;
         ActorAbilityManager mainPlayerAbilityManager = null;
+        Vector3 rootWorldPos = root.transform.position;
 
         // Collect all actors across all layers
         List<PlacedActorData> allActors = new List<PlacedActorData>();
@@ -184,12 +185,15 @@ public class ARPlacementController : MonoBehaviour
             tierID.Initialize(actor.foodChainTier, actor.prefabName);
 
             // Attach abilities to ALL actors (not just main player)
-            // Non-main-player actors get abilities for auto-defense (no UI button)
             AttachAbilities(go, actor.prefabName, actor.isMainPlayer);
 
             // Attach behaviours from addedScripts
             if (actor.addedScripts != null)
                 AttachBehaviours(go, actor);
+
+            // Attach autonomous movement + hunger to non-player actors
+            if (!actor.isMainPlayer)
+                AttachAutonomousSystems(go, actor.prefabName, rootWorldPos, layerTotal);
 
             Debug.Log($"Spawned: {actor.prefabName} Layer {actor.layerIndex} localY={localY}");
         }
@@ -204,16 +208,7 @@ public class ARPlacementController : MonoBehaviour
         Debug.Log("Environment placed successfully.");
     }
 
-    /// <summary>
-    /// Attaches ActorAbility components to the spawned actor based on ActorAbilityConfig.
-    /// Then attaches ActorAbilityManager so the UI can query abilities.
-    /// Returns the ActorAbilityManager, or null if no abilities were registered.
-    /// </summary>
-    /// <summary>
-    /// Attaches ActorAbility components to an actor from ActorAbilityConfig.
-    /// isMainPlayer = true  → abilities get UI buttons (manual toggle)
-    /// isMainPlayer = false → abilities run in auto-defense mode only (no button)
-    /// </summary>
+    
     private ActorAbilityManager AttachAbilities(GameObject actorGO, string prefabName,
                                                 bool isMainPlayer = false)
     {
@@ -292,18 +287,7 @@ public class ARPlacementController : MonoBehaviour
         return topY - (layerIndex * spacing);
     }
 
-    /// <summary>
-    /// Reads actor.addedScripts and attaches the appropriate MonoBehaviour components.
-    /// 
-    /// Behaviour name → Component mapping:
-    ///   "Hunt Prey"        → FoodConsumer    (tier-aware, finds prey by tier automatically)
-    ///   "Flee Predators"   → FleeFromPredator (tier-aware, flees higher-tier actors)
-    ///   "Food Consumption" → FoodConsumer    (legacy: uses saved foodTargetUniqueID)
-    ///   anything else      → resolved via System.Type.GetType() for custom behaviours
-    /// 
-    /// To add a new behaviour: handle its string name in the switch below,
-    /// or it will fall through to the dynamic type resolution.
-    /// </summary>
+   
     private void AttachBehaviours(GameObject actorGO, PlacedActorData actor)
     {
         foreach (string scriptName in actor.addedScripts)
@@ -382,6 +366,73 @@ public class ARPlacementController : MonoBehaviour
                     }
             }
         }
+    }
+
+
+    private void AttachAutonomousSystems(GameObject actorGO, string prefabName,
+                                         Vector3 rootWorldPos, int totalLayers)
+    {
+        if (foodChainConfig == null)
+        {
+            Debug.LogWarning("[AR] No FoodChainConfig — skipping autonomous systems.");
+            return;
+        }
+
+        FoodChainConfig.SpeciesEntry entry = foodChainConfig.GetEntry(prefabName);
+
+        float layerSpacing = settings != null ? settings.layerSpacing : 1.5f;
+        float bottomY = settings != null ? settings.bottomLayerY : 0f;
+
+        float prefWorldY = foodChainConfig.GetPreferredWorldY(
+            prefabName, rootWorldPos.y, totalLayers, layerSpacing, bottomY);
+
+        float huntLayerY = prefWorldY;
+        if (entry != null)
+        {
+            int midLayer = totalLayers / 2;
+            int huntLayerIndex;
+
+            if (entry.preferredLayerIndex <= midLayer)
+            {
+                huntLayerIndex = Mathf.Min(entry.preferredLayerIndex + 1, totalLayers - 1);
+            }
+            else
+            {
+                huntLayerIndex = Mathf.Max(entry.preferredLayerIndex - 1, 0);
+            }
+
+            float topY = bottomY + (totalLayers - 1) * layerSpacing;
+            huntLayerY = rootWorldPos.y + topY - (huntLayerIndex * layerSpacing);
+        }
+
+        // --- AutonomousMovement 
+        AutonomousMovement autoMove = actorGO.AddComponent<AutonomousMovement>();
+        autoMove.Initialize(
+            prefWorldY,
+            entry != null ? entry.wanderYRange : 0.5f,
+            entry != null ? entry.wanderSpeed : 0.4f,
+            entry != null ? entry.settleSpeed : 0.3f,
+            entry != null ? entry.settleTime : 45f,
+            entry != null ? entry.wanderDirectionChangeInterval : 3f
+        );
+        autoMove.SetHuntingLayerY(huntLayerY);
+
+        // --- HungerSystem 
+        // huntHungerThreshold: actor only hunts when hunger drops below this value.
+        // Above this = full, ignores prey, wanders peacefully.
+        // Below this = hungry, actively hunts across layers.
+        HungerSystem hunger = actorGO.AddComponent<HungerSystem>();
+        hunger.Initialize(
+            entry != null ? entry.maxHunger : 100f,
+            entry != null ? entry.hungerDepletionRate : 2f,
+            entry != null ? entry.huntHungerThreshold : 70f,
+            entry != null ? entry.slowHungerThreshold : 30f,
+            entry != null ? entry.starvingSpeedMultiplier : 0.4f,
+            entry != null ? entry.diesWhenStarving : true
+        );
+
+        Debug.Log($"[AR] AutoMove + Hunger attached to {prefabName} " +
+                  $"preferredY={prefWorldY:F1}, huntLayerY={huntLayerY:F1}");
     }
 
 }

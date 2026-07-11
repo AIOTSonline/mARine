@@ -76,29 +76,24 @@ public class MovementController : MonoBehaviour
         transform.position = pos;
     }
 
-    // -------------------------------------------------------
-    // Called by UI button press/release events
-    // -------------------------------------------------------
-
-    /// <summary>Bind to the Up button's "Pointer Down" event.</summary>
+    
     public void StartMovingUp()
     {
         isMovingUp = true;
     }
 
-    /// <summary>Bind to the Up button's "Pointer Up" event.</summary>
+    
     public void StopMovingUp()
     {
         isMovingUp = false;
     }
 
-    /// <summary>Bind to the Down button's "Pointer Down" event.</summary>
+    
     public void StartMovingDown()
     {
         isMovingDown = true;
     }
 
-    /// <summary>Bind to the Down button's "Pointer Up" event.</summary>
     public void StopMovingDown()
     {
         isMovingDown = false;
