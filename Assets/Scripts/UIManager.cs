@@ -26,6 +26,6 @@ public class UIManager : MonoBehaviour
 
     public void LoadHumanInteractionScene()
     {
-        SceneManager.LoadScene("Pose Landmark Detection");
+        SceneManager.LoadScene("FaceARScene");
     }
 }
