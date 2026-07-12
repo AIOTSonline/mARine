@@ -65,10 +65,17 @@ namespace CreateEnv
         // ── Group 5: Streaming (EndlessTerrain) ──────────────────────────────
         public int viewDistanceIndex = 1;      // 0 = Near, 1 = Medium, 2 = Far
 
+        // ── User layer ───────────────────────────────────────────────────────
+        // The friendly choices this profile was made from (see SimpleEnvironmentMapper).
+        // Persisted so editing an environment re-opens with the same choices; the
+        // technical fields above stay the single source of truth for the loader.
+        public SimpleEnvironmentSettings simple = new SimpleEnvironmentSettings();
+
         public EnvironmentProfile Clone()
         {
             var c = (EnvironmentProfile)MemberwiseClone();
             c.speciesDensity = (float[])speciesDensity.Clone();
+            c.simple = simple != null ? simple.Clone() : new SimpleEnvironmentSettings();
             return c;
         }
     }

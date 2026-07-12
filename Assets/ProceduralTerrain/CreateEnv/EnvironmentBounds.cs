@@ -78,6 +78,11 @@ namespace CreateEnv
         {
             if (p == null) return;
 
+            // User layer (dropdown indices / 0..1 sliders) — kept valid here too so
+            // a hand-edited file can't hold an out-of-range choice.
+            if (p.simple == null) p.simple = new SimpleEnvironmentSettings();
+            p.simple.Clamp();
+
             // Group 1
             p.noiseScale  = NoiseScale.Clamp(p.noiseScale);
             p.octaves     = Octaves.ClampInt(p.octaves);
