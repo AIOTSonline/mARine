@@ -6,7 +6,7 @@ public class UIManager : MonoBehaviour
 {
     public void LoadARScene()
     {
-        Addressables.LoadSceneAsync("AR_Spawn");
+        Addressables.LoadSceneAsync("AISpawnerScene");
     }
 
     public void LoadFreeExploreEcosystem()
