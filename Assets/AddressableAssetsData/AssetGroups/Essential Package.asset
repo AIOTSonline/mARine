@@ -15,8 +15,8 @@ MonoBehaviour:
   m_GroupName: Essential Package
   m_GUID: df42352d8a4e6424d909efd7b9eb0664
   m_SerializeEntries:
-  - m_GUID: 0812d52c3728c2246a74833dc2c50c37
-    m_Address: AR_Spawn
+  - m_GUID: b13cc5b0912a20a4abbf9d28a30a7c56
+    m_Address: AISpawnerScene
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

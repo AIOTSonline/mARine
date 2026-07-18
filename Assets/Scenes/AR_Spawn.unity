@@ -7218,8 +7218,6 @@ MonoBehaviour:
   previousSceneName: StartScene
   infoCanvas: {fileID: 0}
   quizCanvas: {fileID: 0}
-  canvasToggleManager: {fileID: 0}
-  ttsManager: {fileID: 0}
 --- !u!4 &1943077774
 Transform:
   m_ObjectHideFlags: 0
