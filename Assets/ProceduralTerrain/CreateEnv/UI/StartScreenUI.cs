@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace CreateEnv.UI
 {
@@ -19,13 +18,13 @@ namespace CreateEnv.UI
         [Tooltip("Scene returned to after Save/Cancel — where saved environments are played.")]
         public string configSceneName = "FreeExploreConfig";
 
-        void Start()
+        private async void Start()
         {
             var editor = editorPanel != null ? editorPanel.GetComponent<EnvironmentEditorUI>() : null;
             if (editor == null)
             {
                 Debug.LogWarning("[StartScreenUI] No EnvironmentEditorUI on editorPanel; returning to config.");
-                SceneManager.LoadScene(configSceneName);
+                await SceneLoaderBackend.LoadAddressableSceneAsync(configSceneName);
                 return;
             }
 
@@ -35,7 +34,12 @@ namespace CreateEnv.UI
             var existing = string.IsNullOrEmpty(editId) ? null : EnvironmentRepository.Load(editId);
 
             // Open the settings form straight away; both Save and Cancel come back here.
-            editor.Open(existing, () => SceneManager.LoadScene(configSceneName));
+            editor.Open(existing, ReturnToConfig);
+        }
+
+        private async void ReturnToConfig()
+        {
+            await SceneLoaderBackend.LoadAddressableSceneAsync(configSceneName);
         }
     }
 }

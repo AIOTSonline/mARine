@@ -2,11 +2,6 @@
 using UnityEngine.UI;
 using TMPro;
 
-using Firebase;
-using Firebase.Firestore;
-
-using UnityEngine.AddressableAssets;
-
 public class StartupFlowValidation : MonoBehaviour
 {
     private static bool warningShown = false;
@@ -29,8 +24,27 @@ public class StartupFlowValidation : MonoBehaviour
     private bool showingDownloadScreen = false;
     private bool packageInstalled = false;
 
+    private TextMeshProUGUI buttonLabel;
+
     void Start()
     {
+        Debug.Log("StartupFlowValidation: Start()");
+
+        if (continueButton != null)
+            buttonLabel = continueButton.GetComponentInChildren<TextMeshProUGUI>();
+
+        if (continueButton == null)
+            Debug.LogError("StartupFlowValidation: continueButton is NULL.");
+
+        if (buttonLabel == null)
+            Debug.LogError("StartupFlowValidation: Button label (TextMeshProUGUI) is NULL.");
+
+        if (titleText == null)
+            Debug.LogError("StartupFlowValidation: titleText is NULL.");
+
+        if (bodyText == null)
+            Debug.LogError("StartupFlowValidation: bodyText is NULL.");
+
         if (titleText != null)
             titleText.text = titleDefault;
 
@@ -54,6 +68,8 @@ public class StartupFlowValidation : MonoBehaviour
 
     private void OnContinueClicked()
     {
+        Debug.Log("StartupFlowValidation: Continue clicked.");
+
         if (!showingDownloadScreen)
         {
             ShowDownloadPrompt();
@@ -71,12 +87,12 @@ public class StartupFlowValidation : MonoBehaviour
 
     private void ShowDownloadPrompt()
     {
+        Debug.Log("StartupFlowValidation: Showing download prompt.");
+
         showingDownloadScreen = true;
 
         titleText.text =
             "Essential Resources Required";
-
-       //  bodyText.alignment = TextAlignmentOptions.Left;
 
         bodyText.text =
             "Marine Biology AR requires essential resources before use.\n\n" +
@@ -84,10 +100,10 @@ public class StartupFlowValidation : MonoBehaviour
             "• AR Experiences\n" +
             "• 3D Models\n" +
             "• Learning Content\n\n" +
-            "Essential Resource Pack";
+            "The required resources will be downloaded after you continue.";
 
-        continueButton.GetComponentInChildren<TextMeshProUGUI>().text =
-            "Download";
+        if (buttonLabel != null)
+            buttonLabel.text = "Download";
 
         continueButton.onClick.RemoveAllListeners();
         continueButton.onClick.AddListener(StartPackageDownload);
@@ -95,12 +111,49 @@ public class StartupFlowValidation : MonoBehaviour
 
     private async void StartPackageDownload()
     {
+        Debug.Log("========== StartPackageDownload ==========");
+
+        Debug.Log($"continueButton = {continueButton}");
+        Debug.Log($"buttonLabel = {buttonLabel}");
+        Debug.Log($"titleText = {titleText}");
+        Debug.Log($"bodyText = {bodyText}");
+        Debug.Log($"PackageManager.Instance = {PackageManager.Instance}");
+
+        if (continueButton == null)
+        {
+            Debug.LogError("Continue Button reference is NULL.");
+            return;
+        }
+
+        if (buttonLabel == null)
+        {
+            Debug.LogError("Button label is NULL.");
+            return;
+        }
+
+        if (titleText == null)
+        {
+            Debug.LogError("Title Text reference is NULL.");
+            return;
+        }
+
+        if (bodyText == null)
+        {
+            Debug.LogError("Body Text reference is NULL.");
+            return;
+        }
+
+        if (PackageManager.Instance == null)
+        {
+            Debug.LogError("PackageManager.Instance is NULL.");
+            return;
+        }
+
         // FOR TESTING ONLY
         // Remove later
         // Caching.ClearCache();
 
-        continueButton.GetComponentInChildren<TextMeshProUGUI>().text =
-            "Continue";
+        buttonLabel.text = "Continue";
 
         continueButton.interactable = false;
 
@@ -108,128 +161,89 @@ public class StartupFlowValidation : MonoBehaviour
             "Downloading Resources";
 
         bodyText.text =
-            "Essential Resource Pack\n\n" +
             "Preparing download...";
-
-        // bodyText.alignment = 
-          //  TextAlignmentOptions.TopLeft;
 
         await System.Threading.Tasks.Task.Yield();
 
         try
         {
-            Debug.Log("Checking Firebase...");
+            Debug.Log("STEP 1: Initialize PackageManager");
 
-            var status =
-                await FirebaseApp.CheckAndFixDependenciesAsync();
-
-            Debug.Log("Firebase Status: " + status);
-
-            if (status != DependencyStatus.Available)
+            if (!await PackageManager.Instance.InitializeAsync())
             {
-                Debug.LogError("Firebase dependency issue: " + status);
+                Debug.LogError("Package Manager initialization failed.");
                 return;
             }
 
-            FirebaseFirestore db =
-                FirebaseFirestore.DefaultInstance;
+            Debug.Log("STEP 2: Fetch Package Metadata");
 
-            Debug.Log("Fetching package metadata...");
+            PackageMetadata package =
+                await PackageManager.Instance.GetPackageMetadataAsync(
+                    PackageIds.Essential);
 
-            DocumentSnapshot snap =
-                await db.Collection("packages")
-                        .Document("essential")
-                        .GetSnapshotAsync();
+            Debug.Log($"Package Metadata = {package}");
 
-            if (!snap.Exists)
+            if (package == null)
             {
-                Debug.LogError("Package document not found");
+                Debug.LogError("Package metadata not found.");
                 return;
             }
 
-            Debug.Log("Package Found!");
+            Debug.Log($"Package Name = {package.PackageName}");
+            Debug.Log($"Catalog URL = {package.CatalogUrl}");
+            Debug.Log($"Settings URL = {package.SettingsUrl}");
 
-            string catalogUrl =
-                snap.GetValue<string>("catalogBinUrl");
+            string packageName = package.PackageName;
 
-            string entryScene =
-                snap.GetValue<string>("entryScene");
+            // Download all assets tagged with the EssentialPackage label.
+            string addressableKey = PackageIds.EssentialDownloadKey;
 
-            Debug.Log("Catalog URL: " + catalogUrl);
-            Debug.Log("Entry Scene: " + entryScene);
+            Debug.Log($"Addressable Key = {addressableKey}");
 
-            Debug.Log("Loading catalog...");
+            Debug.Log("STEP 3: Load Catalog");
 
-            var catalogHandle =
-                Addressables.LoadContentCatalogAsync(catalogUrl);
-
-            await catalogHandle.Task;
-
-            Debug.Log("Catalog Loaded");
-
-            var locationsHandle =
-                Addressables.LoadResourceLocationsAsync(entryScene);
-
-            await locationsHandle.Task;
-
-            foreach (var loc in locationsHandle.Result)
+            if (!await PackageManager.Instance.LoadCatalogAsync(package))
             {
-                Debug.Log("LOCATION = " + loc.InternalId);
+                Debug.LogError("Failed to load content catalog.");
+                return;
             }
 
-            var sizeHandle =
-                Addressables.GetDownloadSizeAsync(entryScene);
+            Debug.Log("STEP 4: Get Download Size");
 
-            await sizeHandle.Task;
+            long downloadSize =
+                await PackageManager.Instance.GetDownloadSizeAsync(addressableKey);
 
-            Debug.Log(
-                "Download Size: " +
-                sizeHandle.Result +
-                " bytes");
+            if (downloadSize < 0)
+            {
+                Debug.LogError("Failed to determine download size.");
+                return;
+            }
+
+            Debug.Log($"Download Size: {downloadSize} bytes");
+            Debug.Log($"Download Size: {downloadSize / 1024f / 1024f:F2} MB");
 
             bodyText.text =
-                "Essential Resource Pack\n\n" +
-                $"Download Size: {sizeHandle.Result / 1024f / 1024f:F2} MB";
+                $"{packageName}\n\n" +
+                $"Download Size: {downloadSize / 1024f / 1024f:F2} MB";
 
-            Debug.Log("Starting dependency download...");
+            Debug.Log("STEP 5: Download Dependencies");
 
-            var downloadHandle =
-                Addressables.DownloadDependenciesAsync(entryScene);
+            bool downloadSucceeded =
+                await PackageManager.Instance.DownloadDependenciesAsync(
+                    addressableKey,
+                    progress =>
+                    {
+                        bodyText.text =
+                            $"{packageName}\n\n" +
+                            $"Downloading... {progress:F0}%";
+                    });
 
-            while (!downloadHandle.IsDone)
+            if (!downloadSucceeded)
             {
-                var downloadStatus =
-                    downloadHandle.GetDownloadStatus();
-
-                if (downloadStatus.TotalBytes > 0)
-                {
-                    float progress =
-                        (float)downloadStatus.DownloadedBytes /
-                        downloadStatus.TotalBytes;
-
-                    Debug.Log(
-                        $"Downloaded {downloadStatus.DownloadedBytes / 1024f / 1024f:F2} MB / " +
-                        $"{downloadStatus.TotalBytes / 1024f / 1024f:F2} MB " +
-                        $"({progress * 100f:F1}%)"
-                    );
-
-                    bodyText.text =
-                        "Essential Resource Pack\n\n" +
-                        $"Downloading... {(progress * 100f):F0}%";
-                }
-                else
-                {
-                    Debug.Log("Preparing download...");
-
-                    bodyText.text =
-                        "Essential Resource Pack\n\n" +
-                        "Preparing download...";
-                }
-
-                await System.Threading.Tasks.Task.Delay(500);
+                throw new System.Exception("Dependency download failed.");
             }
 
-            Debug.Log("Dependencies Downloaded");
+            Debug.Log("STEP 6: Dependencies Downloaded");
 
             packageInstalled = true;
 
@@ -237,7 +251,7 @@ public class StartupFlowValidation : MonoBehaviour
                 "Resources Installed";
 
             bodyText.text =
-                "Essential Resource Pack\n\n" +
+                $"{packageName}\n\n" +
                 "All required resources have been installed successfully.";
 
             continueButton.interactable = true;
@@ -247,6 +261,7 @@ public class StartupFlowValidation : MonoBehaviour
         }
         catch (System.Exception ex)
         {
+            Debug.LogError("========== DOWNLOAD FAILED ==========");
             Debug.LogError(ex);
 
             titleText.text =
@@ -257,8 +272,8 @@ public class StartupFlowValidation : MonoBehaviour
 
             continueButton.interactable = true;
 
-            continueButton.GetComponentInChildren<TextMeshProUGUI>().text =
-                "Download";
+            if (buttonLabel != null)
+                buttonLabel.text = "Download";
 
             continueButton.onClick.RemoveAllListeners();
             continueButton.onClick.AddListener(StartPackageDownload);

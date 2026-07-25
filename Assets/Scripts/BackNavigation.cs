@@ -10,39 +10,58 @@ public class BackNavigation : MonoBehaviour
     public GameObject infoCanvas;
     public GameObject quizCanvas;
 
-  //  public CanvasToggleManager canvasToggleManager;
+    // public CanvasToggleManager canvasToggleManager;
+    // public CrossPlatformTTS ttsManager;
 
-   // public CrossPlatformTTS ttsManager;
-
-    void Update()
+    private async void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            // Check if any UICanvasTag is active
-            var allUICanvases = FindObjectsOfType<UICanvasTag>();
-            foreach (var canvas in allUICanvases)
-            {
-                if (canvas.gameObject.activeSelf)
-                {
-                   // if (ttsManager != null)
-                  //  {
-                   //     ttsManager.Stop(); // Stop any ongoing TTS before closing the canvas
-                   // }
-                    canvas.gameObject.SetActive(false);
+        if (!Input.GetKeyDown(KeyCode.Escape))
+            return;
 
-                    if (canvas.name == "AICanvas")
-                      //  canvasToggleManager.HideAICanvas();
-                    return;
-                }
-            }
-            
-            // No UI canvas open -> exit AR session
-            Debug.Log("Back button detected in AR Session. Navigating to " + previousSceneName);
-            if (arSession != null)
+        // Check if any UICanvasTag is active
+        var allUICanvases = FindObjectsOfType<UICanvasTag>();
+
+        foreach (var canvas in allUICanvases)
+        {
+            if (canvas.gameObject.activeSelf)
             {
-                arSession.Reset(); // Or arSession.enabled = false;
+                // if (ttsManager != null)
+                // {
+                //     ttsManager.Stop();
+                // }
+
+                canvas.gameObject.SetActive(false);
+
+                if (canvas.name == "AICanvas")
+                {
+                    // canvasToggleManager.HideAICanvas();
+                }
+
+                return;
             }
-            SceneManager.LoadScene(previousSceneName);
+        }
+
+        // No UI canvas open -> exit AR session
+        if (arSession != null)
+        {
+            arSession.Reset();
+        }
+
+        Debug.Log($"Navigating to '{previousSceneName}'.");
+
+        switch (previousSceneName)
+        {
+            case "AISpawnerScene":
+            case "FreeExploreConfig":
+            case "FreeExplore":
+            case "FreeExploreEndless":
+            case "CustomEnvBuilder":
+                await SceneLoaderBackend.LoadAddressableSceneAsync(previousSceneName);
+                break;
+
+            default:
+                await SceneLoaderBackend.LoadLocalSceneAsync(previousSceneName);
+                break;
         }
     }
 }

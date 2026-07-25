@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using CreateEnv;
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class FreeExploreConfigController : MonoBehaviour
@@ -277,17 +276,17 @@ public class FreeExploreConfigController : MonoBehaviour
         }
     }
 
-    private void EditSelected()
+    private async void EditSelected()
     {
         var profile = SelectedUserEnvironment;
         if (profile == null)
             return;
 
         EnvironmentSession.EditRequestId = profile.id;
-        SceneManager.LoadScene(builderSceneName);
+        await SceneLoaderBackend.LoadAddressableSceneAsync(builderSceneName);
     }
 
-    private void Play()
+    private async void Play()
     {
         if (isBoundless)
         {
@@ -316,14 +315,14 @@ public class FreeExploreConfigController : MonoBehaviour
                 };
             }
 
-            SceneManager.LoadScene(endlessSceneName);
+            await SceneLoaderBackend.LoadAddressableSceneAsync(endlessSceneName);
         }
         else
         {
             if (portalEnvironments.Length == 0)
                 return;
 
-            SceneManager.LoadScene(portalEnvironments[portalIndex].SceneName);
+            await SceneLoaderBackend.LoadAddressableSceneAsync(portalEnvironments[portalIndex].SceneName);
         }
     }
 
