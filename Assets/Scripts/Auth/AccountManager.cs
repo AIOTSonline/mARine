@@ -10,10 +10,12 @@ public class AccountManager : MonoBehaviour
     {
         FirebaseAuth.DefaultInstance.SignOut();
 
-        GoogleSignIn.DefaultInstance.SignOut();
+#if UNITY_ANDROID && !UNITY_EDITOR
+    GoogleSignIn.DefaultInstance.SignOut();
 
-        // reset Google config singleton
-        GoogleSignIn.Configuration = null;
+    // Reset Google config singleton
+    GoogleSignIn.Configuration = null;
+#endif
 
         Debug.Log("User signed out.");
 

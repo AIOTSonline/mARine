@@ -76,7 +76,7 @@ public class StartupFlowValidation : MonoBehaviour
         titleText.text =
             "Essential Resources Required";
 
-        bodyText.alignment = TextAlignmentOptions.Left;
+       //  bodyText.alignment = TextAlignmentOptions.Left;
 
         bodyText.text =
             "Marine Biology AR requires essential resources before use.\n\n" +
@@ -111,8 +111,8 @@ public class StartupFlowValidation : MonoBehaviour
             "Essential Resource Pack\n\n" +
             "Preparing download...";
 
-        bodyText.alignment = 
-            TextAlignmentOptions.Center;
+        // bodyText.alignment = 
+          //  TextAlignmentOptions.TopLeft;
 
         await System.Threading.Tasks.Task.Yield();
 
