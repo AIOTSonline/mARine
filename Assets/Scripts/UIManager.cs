@@ -4,19 +4,14 @@ using UnityEngine.SceneManagement;
 
 public class UIManager : MonoBehaviour
 {
-    public void LoadARScene()
+    public async void LoadARScene()
     {
-        Addressables.LoadSceneAsync("AISpawnerScene");
+        await SceneLoaderBackend.LoadAddressableSceneAsync("AISpawnerScene");
     }
 
-    public void LoadFreeExploreEcosystem()
+    public async void LoadFreeExploreEcosystem()
     {
-        SceneManager.LoadScene("FreeExploreConfig");
-    }
-
-    public void LoadModuleWise()
-    {
-        SceneManager.LoadScene("ModuleWise");
+        await SceneLoaderBackend.LoadAddressableSceneAsync("FreeExploreConfig");
     }
 
     public void LoadCustomCreateScene()

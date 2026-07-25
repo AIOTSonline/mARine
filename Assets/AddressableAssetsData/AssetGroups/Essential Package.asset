@@ -15,10 +15,71 @@ MonoBehaviour:
   m_GroupName: Essential Package
   m_GUID: df42352d8a4e6424d909efd7b9eb0664
   m_SerializeEntries:
+  - m_GUID: 0044d86b7781c584cab08a7ff33b236a
+    m_Address: Layer2_ROOT
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - EssentialPackage
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 005752653d8702846839a7c689ec6ddd
+    m_Address: octo_shark_layer
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - EssentialPackage
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 01c0ed6529a9f1f429f3c68599dd3810
+    m_Address: layer_1
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - EssentialPackage
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 149163e4c87b4311ab640d4e731ae580
+    m_Address: CustomEnvBuilder
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - EssentialPackage
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 56a67876bddb1bf4bb2cbd824e46bd5a
+    m_Address: Layer1_ROOT
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - EssentialPackage
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 59aced77654ae1842a90698dade0b763
+    m_Address: FreeExplore
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - EssentialPackage
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 633472bd8af631c4da474667d3cd6e86
+    m_Address: layer_2
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - EssentialPackage
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9fb1635b382f1f24bb16288483669a48
+    m_Address: Layer3_ROOT
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - EssentialPackage
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: b13cc5b0912a20a4abbf9d28a30a7c56
     m_Address: AISpawnerScene
     m_ReadOnly: 0
-    m_SerializedLabels: []
+    m_SerializedLabels:
+    - EssentialPackage
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b3da273bf3b54f049a25d042b4324da2
+    m_Address: FreeExploreEndless
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - EssentialPackage
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f4d0c983e70f2984a83d98ce29640cdc
+    m_Address: FreeExploreConfig
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - EssentialPackage
     FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: d42cc4cd8a6649d46bec9096b777b23f, type: 2}
