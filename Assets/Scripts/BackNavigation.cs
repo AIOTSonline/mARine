@@ -1,4 +1,4 @@
-using UnityEngine;
+/* using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.XR.ARFoundation;
 
@@ -63,5 +63,40 @@ public class BackNavigation : MonoBehaviour
                 await SceneLoaderBackend.LoadLocalSceneAsync(previousSceneName);
                 break;
         }
+    }
+}*/
+using UnityEngine;
+using UnityEngine.XR.ARFoundation;
+
+public class BackNavigation : MonoBehaviour
+{
+    public ARSession arSession;
+    public string previousSceneName = "StartScene";
+    public GameObject infoCanvas;
+    public GameObject quizCanvas;
+
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Escape))
+            GoBack();
+    }
+
+    public async void GoBack()
+    {
+        var allUICanvases = FindObjectsOfType<UICanvasTag>();
+        foreach (var canvas in allUICanvases)
+        {
+            if (canvas.gameObject.activeSelf)
+            {
+                canvas.gameObject.SetActive(false);
+                return;
+            }
+        }
+
+        if (arSession != null)
+            arSession.Reset();
+
+        Debug.Log($"Navigating to '{previousSceneName}'.");
+        await SceneLoaderBackend.LoadSceneAsync(previousSceneName);
     }
 }
