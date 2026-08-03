@@ -51,18 +51,12 @@ public static class ProceduralMeshLibrary
         List<Vector3> verts; List<int> tris;
         Icosphere(2, out verts, out tris);
 
-        float squash = Lerp(rng, 0.55f, 0.85f);
-        float freq   = Lerp(rng, 1.6f, 2.6f);
-        float bumpy  = Lerp(rng, 0.25f, 0.4f);
+        var style = RockStyle.Random(rng, seed, 0.2f);
 
         for (int i = 0; i < verts.Count; i++)
         {
-            Vector3 dir = verts[i].normalized;
-            float n = Fbm(dir * freq, 3, seed);
-            Vector3 v = dir * (0.5f * (1f + bumpy * n));
-            v.y *= squash;
-            if (v.y < -0.18f) v.y = -0.18f - (v.y + 0.18f) * 0.25f; // flatten base
-            verts[i] = v;
+            Vector3 v = style.ShapeFromDirection(verts[i].normalized) * 0.5f;
+            verts[i] = RockStyle.SeatBase(v, -0.18f, 0.14f);
         }
 
         return FinishFlat(verts, tris, seed,
@@ -121,13 +115,19 @@ public static class ProceduralMeshLibrary
         float minor = Lerp(rng, 0.10f, 0.15f);
         float widen = Lerp(rng, 1.1f, 1.5f); // feet thicker than the crown
 
+        // Same rock language as the boulders (displacement + bedding), but with the
+        // fracture half-spaces cleared: those are sized against a solid ellipsoid and
+        // would slice a swept arch in half. Without this the arch reads as a smooth
+        // tube next to faceted boulders — a different material entirely.
+        var style = RockStyle.Random(rng, seed, 0.55f);
+        style.fractures = null;
+
         var ringCache = new Vector3[steps + 1, segs];
         for (int i = 0; i <= steps; i++)
         {
             // Sweep slightly past the horizontal so the feet embed in the sand.
             float theta = Mathf.Lerp(-0.15f, Mathf.PI + 0.15f, i / (float)steps);
             Vector3 centre = new Vector3(Mathf.Cos(theta) * major, Mathf.Sin(theta) * major, 0f);
-            Vector3 tangent = new Vector3(-Mathf.Sin(theta), Mathf.Cos(theta), 0f);
 
             float crown = Mathf.Sin(theta);                       // 1 at apex, 0 at feet
             float thick = minor * Mathf.Lerp(widen, 1f, crown);
@@ -137,9 +137,9 @@ public static class ProceduralMeshLibrary
                 float a = s / (float)segs * Mathf.PI * 2f;
                 // Ring frame around the tube: normal (radial) and binormal (Z).
                 Vector3 radial = new Vector3(Mathf.Cos(theta), Mathf.Sin(theta), 0f);
-                Vector3 p = centre + (radial * Mathf.Cos(a) + Vector3.forward * Mathf.Sin(a)) * thick;
-                float n = 1f + 0.3f * Fbm(p * 3.0f + tangent * 0.31f, 2, seed);
-                ringCache[i, s] = centre + (radial * Mathf.Cos(a) + Vector3.forward * Mathf.Sin(a)) * (thick * n);
+                Vector3 outward = radial * Mathf.Cos(a) + Vector3.forward * Mathf.Sin(a);
+                Vector3 p = centre + outward * thick;
+                ringCache[i, s] = style.Weather(p, outward, centre, thick * 2.2f);
             }
         }
 
@@ -604,4 +604,204 @@ public static class ProceduralMeshLibrary
 
     static float SmoothStep(float t) => t * t * (3f - 2f * t);
     static float Lerp(System.Random rng, float a, float b) => Mathf.Lerp(a, b, (float)rng.NextDouble());
+
+    static float RidgedFbm(Vector3 p, int octaves, int seed)
+    {
+        float sum = 0f, amp = 1f, freq = 1f, norm = 0f;
+        for (int i = 0; i < octaves; i++)
+        {
+            float n = ValueNoise(p * freq, seed + i * 131) * 2f - 1f;
+            sum += (1f - Mathf.Abs(n)) * amp;
+            norm += amp;
+            amp *= 0.55f;
+            freq *= 2.3f;
+        }
+        return sum / norm;
+    }
+
+    // Turns smooth procedural blobs into something that reads as rock.
+    //
+    // The old prop meshes were bodies of revolution with a little low-frequency
+    // noise on top — the eye recognises those instantly as "a sphere someone
+    // wobbled", which is exactly the artificial look. Real rock has three things
+    // none of that had:
+    //
+    //   1. Fracture faces  – rock splits along planes, so it is covered in flat
+    //                        facets meeting at hard edges, not smooth curvature.
+    //   2. Bedding strata  – sedimentary layers of different hardness: resistant
+    //                        bands jut out, soft bands erode back, and the underside
+    //                        of each hard band overhangs the one below it.
+    //   3. Detail at two scales – broad mass shape plus fine chipped surface.
+    //
+    // RockStyle bundles those parameters, Weather() applies them to any point on any
+    // shape (blob, swept cliff, cave shell), and every rock-like feature in
+    // ProceduralMeshLibrary goes through it so the whole biome looks like one rock
+    // type instead of a bag of unrelated primitives.
+    public class RockStyle
+    {
+        // Ellipsoid the shape is stretched onto. Non-uniform axes alone kill a lot
+        // of the "ball" reading before any noise is applied.
+        public Vector3 axes = Vector3.one;
+
+        [Tooltip("Broad mass lumps: low frequency, high amplitude.")]
+        public float broadFreq = 1.9f;
+        public float broadAmp = 0.22f;
+
+        [Tooltip("Chipped surface: high frequency, low amplitude.")]
+        public float detailFreq = 7.5f;
+        public float detailAmp = 0.05f;
+
+        [Tooltip("Ridged creases that run across the mass like fracture lines.")]
+        public float creaseFreq = 3.4f;
+        public float creaseAmp = 0.07f;
+
+        [Header("Bedding")]
+        [Tooltip("Number of sedimentary layers across one unit of height.")]
+        public float strataCount = 6f;
+        public float strataAmp = 0.06f;
+        [Tooltip("Bedding plane normal — tilted slightly so layers aren't dead level.")]
+        public Vector3 beddingUp = Vector3.up;
+
+        [Header("Fracture")]
+        [Tooltip("Half-spaces the shape is clipped against; each one becomes a flat face.")]
+        public Vector4[] fractures = new Vector4[0]; // xyz = plane normal, w = distance
+
+        public int seed;
+
+        // Builds a coherent rock style. `flatness` biases toward slabby, heavily
+        // bedded rock (cliffs) vs chunky blocks (boulders).
+        public static RockStyle Random(System.Random rng, int seed, float flatness = 0f)
+        {
+            var s = new RockStyle { seed = seed };
+
+            float wide = Lerp(rng, 0.85f, 1.35f);
+            float tall = Mathf.Lerp(Lerp(rng, 0.7f, 1.15f), Lerp(rng, 0.45f, 0.7f), flatness);
+            s.axes = new Vector3(wide, tall, Lerp(rng, 0.8f, 1.3f) * wide);
+
+            // These amplitudes were tuned against offline renders of the generated
+            // meshes: anything weaker and the fracture faces and bedding stop reading
+            // at all, and the rock falls straight back to looking like a wobbled ball.
+            s.broadFreq = Lerp(rng, 1.0f, 1.7f);
+            s.broadAmp = Lerp(rng, 0.26f, 0.40f);
+            s.detailFreq = Lerp(rng, 5f, 8f);
+            s.detailAmp = Lerp(rng, 0.06f, 0.11f);
+            s.creaseFreq = Lerp(rng, 2.0f, 3.4f);
+            s.creaseAmp = Lerp(rng, 0.10f, 0.17f);
+
+            s.strataCount = Lerp(rng, 5f, 10f) * Mathf.Lerp(1f, 1.6f, flatness);
+            s.strataAmp = Lerp(rng, 0.09f, 0.16f) * Mathf.Lerp(1f, 1.7f, flatness);
+
+            // A few degrees of dip: dead-level layers look like a stack of pancakes.
+            float dip = Lerp(rng, 0.03f, 0.16f);
+            float dipYaw = Lerp(rng, 0f, Mathf.PI * 2f);
+            s.beddingUp = new Vector3(Mathf.Cos(dipYaw) * dip, 1f, Mathf.Sin(dipYaw) * dip).normalized;
+
+            s.fractures = BuildFractures(rng, s.axes, 6 + rng.Next(5), 0.52f, 0.86f);
+            return s;
+        }
+
+        // Random half-spaces sized against the ellipsoid so each one shaves a real
+        // slice off rather than missing the shape or cutting it in half.
+        public static Vector4[] BuildFractures(System.Random rng, Vector3 axes, int count,
+                                               float minKeep, float maxKeep)
+        {
+            var planes = new Vector4[Mathf.Max(0, count)];
+            for (int i = 0; i < planes.Length; i++)
+            {
+                // Bias slightly away from straight down so bases stay seatable.
+                Vector3 n = new Vector3(
+                    (float)rng.NextDouble() * 2f - 1f,
+                    (float)rng.NextDouble() * 2f - 0.6f,
+                    (float)rng.NextDouble() * 2f - 1f);
+                if (n.sqrMagnitude < 1e-5f) n = Vector3.right;
+                n.Normalize();
+
+                // Extent of the ellipsoid along n.
+                float extent = new Vector3(axes.x * n.x, axes.y * n.y, axes.z * n.z).magnitude;
+                planes[i] = new Vector4(n.x, n.y, n.z, extent * Lerp(rng, minKeep, maxKeep));
+            }
+            return planes;
+        }
+
+        // Full treatment for a point given as a direction on the unit sphere:
+        // stretch onto the ellipsoid, displace, bed, then fracture.
+        public Vector3 ShapeFromDirection(Vector3 dir)
+        {
+            Vector3 p = new Vector3(dir.x * axes.x, dir.y * axes.y, dir.z * axes.z);
+
+            float r = 1f
+                    + broadAmp * Fbm(dir * broadFreq, 3, seed)
+                    + detailAmp * Fbm(dir * detailFreq, 2, seed + 401)
+                    + creaseAmp * (RidgedFbm(dir * creaseFreq, 3, seed + 907) - 0.55f);
+
+            p *= Mathf.Max(0.25f, r);
+            p += StrataPush(p, dir);
+            return Fracture(p);
+        }
+
+        // Treatment for a point on an arbitrary surface (swept cliff faces, cave
+        // shells): displace along the outward direction `outward`, bed by world
+        // height, then fracture relative to `pivot`.
+        public Vector3 Weather(Vector3 p, Vector3 outward, Vector3 pivot, float amount = 1f)
+        {
+            if (outward.sqrMagnitude < 1e-6f) outward = Vector3.up;
+            outward.Normalize();
+
+            float d = broadAmp * Fbm(p * broadFreq, 3, seed)
+                    + detailAmp * Fbm(p * detailFreq, 2, seed + 401)
+                    + creaseAmp * (RidgedFbm(p * creaseFreq, 3, seed + 907) - 0.55f);
+
+            Vector3 q = p + outward * (d * amount);
+            q += StrataPush(q, outward) * amount;
+
+            Vector3 local = q - pivot;
+            return pivot + Fracture(local);
+        }
+
+        // Alternating hard/soft sedimentary bands. Within a band the profile leans
+        // toward the bottom edge, so hard layers overhang the soft ones beneath —
+        // the little shadow line that makes stratified rock read at a glance.
+        public Vector3 StrataPush(Vector3 p, Vector3 outward)
+        {
+            if (strataAmp <= 0f || strataCount <= 0f) return Vector3.zero;
+
+            float h = Vector3.Dot(p, beddingUp) * strataCount;
+            float band = Mathf.Floor(h);
+            float f = h - band;
+
+            float hardness = Hash(Mathf.RoundToInt(band), 17, 3, seed) * 2f - 1f;
+            float lip = 0.35f + 0.65f * (1f - f); // juts most at the band's base
+            Vector3 lateral = new Vector3(outward.x, 0f, outward.z);
+            if (lateral.sqrMagnitude < 1e-6f) lateral = outward;
+            return lateral.normalized * (strataAmp * hardness * lip);
+        }
+
+        // Clips the point into every fracture half-space. Points outside a plane are
+        // projected onto it, so whole patches of the shape collapse into a single
+        // flat facet with a hard silhouette edge where the plane crosses the surface.
+        public Vector3 Fracture(Vector3 p)
+        {
+            if (fractures == null) return p;
+            for (int i = 0; i < fractures.Length; i++)
+            {
+                Vector3 n = new Vector3(fractures[i].x, fractures[i].y, fractures[i].z);
+                float over = Vector3.Dot(p, n) - fractures[i].w;
+                if (over > 0f) p -= n * over;
+            }
+            return p;
+        }
+
+        // Flattens whatever sits below `y` so a rock seats on the seabed instead of
+        // balancing on a point, and adds a small outward flare (buried talus).
+        public static Vector3 SeatBase(Vector3 p, float y, float flare)
+        {
+            if (p.y >= y) return p;
+            float under = y - p.y;
+            p.y = y - under * 0.15f;
+            Vector3 lateral = new Vector3(p.x, 0f, p.z);
+            if (lateral.sqrMagnitude > 1e-6f)
+                p += lateral.normalized * (flare * under);
+            return p;
+        }
+    }
 }

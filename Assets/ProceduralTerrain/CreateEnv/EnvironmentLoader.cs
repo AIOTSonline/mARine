@@ -17,6 +17,7 @@ namespace CreateEnv
         public WaterSurface          water;
         public TerrainDetailScatter  scatter;
         public EndlessTerrain        endlessTerrain;
+        public MarineSnow            snow;
 
         [Tooltip("Used only when Explore is entered directly (no StartScreen). " +
                  "0 = Sample, 1 = Canyon, 2 = Kelp.")]
@@ -64,7 +65,34 @@ namespace CreateEnv
                 underwater.fadeEnd          = p.fadeEnd;
                 underwater.cameraFarMargin  = p.cameraFarMargin;
                 underwater.waterLevel       = p.waterLevel; // I-5 far plane derived inside Apply()
+
+                underwater.absorbTint     = p.absorbTint;
+                underwater.surgeAmplitude = p.surgeAmplitude;
+                underwater.surgeSpeed     = p.surgeSpeed;
+                underwater.surgeDirection = new Vector2(p.surgeDirX, p.surgeDirZ);
+                underwater.encrustAmount  = p.encrustAmount;
+                underwater.encrustScale   = p.encrustScale;
+                underwater.encrustColorA  = p.encrustColorA;
+                underwater.encrustColorB  = p.encrustColorB;
             }
+
+            // 2b) Suspended particulate. The wrap box is tied to fadeEnd so snow never
+            // pops in beyond the distance the fog has already gone opaque (invariant I-2).
+            if (snow != null)
+            {
+                float snowFar = Mathf.Clamp(p.fadeEnd * 0.35f, 3f, 9f);
+                snow.nearFade = 0.5f;
+                snow.farFade  = snowFar;
+                snow.ApplySettings(p.snowCount, snowFar * 1.7f,
+                                   Color.Lerp(p.surfaceGlowColor, Color.white, 0.55f),
+                                   p.snowOpacity, p.snowSizeMin, p.snowSizeMax,
+                                   p.snowDrift, p.snowSink);
+            }
+
+            // 2c) Surface styles — must precede water.Rebuild() (which assigns the
+            // water material) and EndlessTerrain.Initialize() (chunks read
+            // MapGenerator.terrainMaterial as they are created).
+            ApplySurfaceStyles(p);
 
             // 3) Water plane.
             if (water != null)
@@ -104,6 +132,56 @@ namespace CreateEnv
             else Debug.LogWarning("[EnvironmentLoader] No EndlessTerrain found — nothing will stream.");
         }
 
+        // Runtime material clones created for the chosen surface styles. Kept so they
+        // can be destroyed with this object — a Material created with `new` is not
+        // collected automatically and would leak once per environment load.
+        Material _styledTerrainMaterial;
+        Material _styledWaterMaterial;
+
+        // Applies the sea-floor texture style and the water style.
+        //
+        // Both are applied to CLONES. TerrainTextureStyles/WaterStyles write directly
+        // into the material they are handed, and the materials here are shared project
+        // assets: mutating them in the Editor persists the change into the asset file,
+        // so every environment loaded afterwards would inherit the last one's look.
+        //
+        // Style index 0 is a strict no-op and is deliberately handled by skipping the
+        // clone entirely rather than by cloning and applying nothing — an untouched
+        // scene material is the one case that must be bit-for-bit unchanged, since
+        // every profile saved before these fields existed deserializes to 0.
+        void ApplySurfaceStyles(EnvironmentProfile p)
+        {
+            if (p.terrainTextureStyle > 0 && mapGenerator != null && mapGenerator.terrainMaterial != null)
+            {
+                _styledTerrainMaterial = new Material(mapGenerator.terrainMaterial)
+                {
+                    name = mapGenerator.terrainMaterial.name + " (styled)"
+                };
+                TerrainTextureStyles.Apply(_styledTerrainMaterial, p.terrainTextureStyle);
+                // Caustic character is seeded from the environment's own seed and
+                // palette, so two environments on the same sea floor still differ.
+                TerrainTextureStyles.ApplyCaustics(_styledTerrainMaterial, p.terrainTextureStyle,
+                                                   p.seed, p.surfaceGlowColor);
+                mapGenerator.terrainMaterial = _styledTerrainMaterial;
+            }
+
+            if (p.waterStyle > 0 && water != null && water.waterMaterial != null)
+            {
+                _styledWaterMaterial = new Material(water.waterMaterial)
+                {
+                    name = water.waterMaterial.name + " (styled)"
+                };
+                WaterStyles.Apply(_styledWaterMaterial, p.waterStyle, p.waterColor, p.seed);
+                water.waterMaterial = _styledWaterMaterial;
+            }
+        }
+
+        void OnDestroy()
+        {
+            if (_styledTerrainMaterial != null) Destroy(_styledTerrainMaterial);
+            if (_styledWaterMaterial != null)   Destroy(_styledWaterMaterial);
+        }
+
         void AutoWire()
         {
             if (mapGenerator   == null) mapGenerator   = FindFirstObjectByType<MapGenerator>();
@@ -111,6 +189,7 @@ namespace CreateEnv
             if (water          == null) water          = FindFirstObjectByType<WaterSurface>();
             if (scatter        == null) scatter        = FindFirstObjectByType<TerrainDetailScatter>();
             if (endlessTerrain == null) endlessTerrain = FindFirstObjectByType<EndlessTerrain>();
+            if (snow           == null) snow           = FindFirstObjectByType<MarineSnow>();
         }
     }
 }

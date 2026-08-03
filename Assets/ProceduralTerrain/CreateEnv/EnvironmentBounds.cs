@@ -59,6 +59,17 @@ namespace CreateEnv
         public static readonly Range WaterTint        = new Range(0f, 1f, 0.18f, 0.01f);
         public static readonly Range SpeciesDensity   = new Range(0f, 3f, 1f, 0.05f);
 
+        // ── Group 3b: Medium, surge, particulate ─────────────────────────────
+        public static readonly Range AbsorbTint     = new Range(0f, 4f, 0f, 0.05f);
+        public static readonly Range SurgeAmplitude = new Range(0f, 1f, 0f, 0.01f);
+        public static readonly Range SurgeSpeed     = new Range(0f, 3f, 0.55f, 0.05f);
+        public static readonly Range SnowCount      = new Range(0f, 4000f, 0f, 10f);
+        public static readonly Range SnowOpacity    = new Range(0f, 1f, 0.5f, 0.01f);
+        public static readonly Range SnowSize       = new Range(0.001f, 0.15f, 0.012f, 0.001f);
+        public static readonly Range SnowSpeed      = new Range(0f, 0.5f, 0.05f, 0.005f);
+        public static readonly Range EncrustAmount  = new Range(0f, 1f, 0f, 0.01f);
+        public static readonly Range EncrustScale   = new Range(0.1f, 8f, 1.6f, 0.1f);
+
         public const float TerrainScale = 0.25f; // EndlessTerrain.Scale — world size of a chunk unit
 
         // World distance (metres) the terrain streams to for each view-distance preset.
@@ -121,6 +132,34 @@ namespace CreateEnv
             if (p.speciesDensity == null) p.speciesDensity = new float[0];
             for (int i = 0; i < p.speciesDensity.Length; i++)
                 p.speciesDensity[i] = SpeciesDensity.Clamp(p.speciesDensity[i]);
+
+            // Group 3b
+            p.absorbTint     = AbsorbTint.Clamp(p.absorbTint);
+            p.surgeAmplitude = SurgeAmplitude.Clamp(p.surgeAmplitude);
+            p.surgeSpeed     = SurgeSpeed.Clamp(p.surgeSpeed);
+            p.snowCount      = SnowCount.ClampInt(p.snowCount);
+            p.snowOpacity    = SnowOpacity.Clamp(p.snowOpacity);
+            p.snowSizeMin    = SnowSize.Clamp(p.snowSizeMin);
+            p.snowSizeMax    = SnowSize.Clamp(p.snowSizeMax);
+            p.snowDrift      = SnowSpeed.Clamp(p.snowDrift);
+            p.snowSink       = SnowSpeed.Clamp(p.snowSink);
+            p.encrustAmount  = EncrustAmount.Clamp(p.encrustAmount);
+            p.encrustScale   = EncrustScale.Clamp(p.encrustScale);
+
+            // Group 3c — surface styles. Clamped against the style tables themselves,
+            // so adding a style to SurfaceStyles.cs widens the valid range with no
+            // change here, and a hand-edited file can never index out of bounds.
+            p.terrainTextureStyle = Mathf.Clamp(p.terrainTextureStyle, 0,
+                                                TerrainTextureStyles.Names.Length - 1);
+            p.waterStyle          = Mathf.Clamp(p.waterStyle, 0,
+                                                WaterStyles.Names.Length - 1);
+
+            if (p.snowSizeMax < p.snowSizeMin) p.snowSizeMax = p.snowSizeMin;
+            if (Mathf.Abs(p.surgeDirX) < 1e-4f && Mathf.Abs(p.surgeDirZ) < 1e-4f)
+            {
+                p.surgeDirX = 1f;
+                p.surgeDirZ = 0f;
+            }
 
             // ── Cross-field invariants (re-derived, never trusted) ───────────
             float reach = ViewDistanceWorldReach(p.viewDistanceIndex);

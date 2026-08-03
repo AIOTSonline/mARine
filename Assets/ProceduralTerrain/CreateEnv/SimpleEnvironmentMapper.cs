@@ -19,6 +19,7 @@ namespace CreateEnv
             ApplyHabitat(p, s);
             ApplyWater(p, s);
             ApplyExploration(p, s);
+            ApplySurfaces(p, s);
 
             EnvironmentBounds.Clamp(p);
         }
@@ -84,6 +85,29 @@ namespace CreateEnv
             float d = s.habitatDensity;
             p.lifeDensity      = Mathf.Lerp(0.3f, 1.8f, d);
             p.maxPropsPerChunk = Mathf.RoundToInt(Mathf.Lerp(80f, 300f, d));
+
+            // How thickly rock is overgrown tracks the same density the user set for
+            // life, and the palette follows the habitat: reef rock is coralline
+            // pink/orange, kelp-forest rock is olive/rust, sand-bottom rock stays bare.
+            p.encrustAmount = Mathf.Lerp(0.12f, 0.62f, d);
+            p.encrustScale  = 1.6f;
+
+            switch (s.marineHabitat)
+            {
+                case 1: // Kelp Forest
+                    p.encrustColorA = new Color(0.36f, 0.42f, 0.22f, 1f);
+                    p.encrustColorB = new Color(0.62f, 0.44f, 0.20f, 1f);
+                    break;
+                case 2: // Sandy Bottom
+                    p.encrustAmount *= 0.35f;
+                    p.encrustColorA = new Color(0.55f, 0.52f, 0.42f, 1f);
+                    p.encrustColorB = new Color(0.68f, 0.62f, 0.48f, 1f);
+                    break;
+                default: // Coral Reef
+                    p.encrustColorA = new Color(0.62f, 0.28f, 0.42f, 1f);
+                    p.encrustColorB = new Color(0.82f, 0.48f, 0.26f, 1f);
+                    break;
+            }
         }
 
         // ── 3. Water ─────────────────────────────────────────────────────────
@@ -95,6 +119,20 @@ namespace CreateEnv
             p.fogDensity       = Mathf.Lerp(0.11f, 0.03f, clarity);
             p.sunGlowIntensity = Mathf.Lerp(0.7f, 1.3f, clarity);
             p.ambientIntensity = Mathf.Lerp(0.8f, 1.2f, clarity);
+
+            // Murky water absorbs the channels it is dark in harder, and carries more
+            // suspended particulate. Both fall out of the clarity slider the user
+            // already sets — no new knob, and every existing palette gets them.
+            p.absorbTint  = Mathf.Lerp(2.6f, 1.3f, clarity);
+            p.snowCount   = Mathf.RoundToInt(Mathf.Lerp(900f, 400f, clarity));
+            p.snowOpacity = Mathf.Lerp(0.58f, 0.34f, clarity);
+            p.snowDrift   = 0.05f;
+            p.snowSink    = 0.03f;
+
+            p.surgeAmplitude = 0.05f;
+            p.surgeSpeed     = 0.55f;
+            p.surgeDirX      = 1f;
+            p.surgeDirZ      = 0.35f;
 
             switch (s.waterColour)
             {
@@ -122,6 +160,18 @@ namespace CreateEnv
             water.a = glow.a = deep.a = sun.a = 1f;
             p.waterColor = water; p.surfaceGlowColor = glow;
             p.deepColor = deep;   p.sunGlowColor = sun;
+        }
+
+        // ── 5. Surface styles ────────────────────────────────────────────────
+        // A straight pass-through, unlike every other mapping here. These two are
+        // genuinely independent aesthetic choices: they drive no other system, so
+        // there is nothing to correlate them with. Both are already validated
+        // indices (SimpleEnvironmentSettings.Clamp), and index 0 leaves the
+        // scene's own materials untouched.
+        static void ApplySurfaces(EnvironmentProfile p, SimpleEnvironmentSettings s)
+        {
+            p.terrainTextureStyle = s.seafloorSurface;
+            p.waterStyle          = s.waterMovement;
         }
 
         // ── 4. Exploration ───────────────────────────────────────────────────

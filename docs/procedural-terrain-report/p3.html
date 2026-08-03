@@ -1,0 +1,482 @@
+<h3 style="page-break-before: always">3.2&nbsp;&nbsp;<span class="mono">TerrainShaper.cs</span> — the Canyons style</h3>
+<div class="filecard">
+<h4>Assets/ProceduralTerrain/Scripts/TerrainShaper.cs</h4>
+<div class="meta"><span>157 lines</span><span><span class="tag thr">WORKER</span><span class="tag">static</span></span><span>same signature contract as <code>Noise.GenerateNoiseMap</code></span></div>
+<p style="margin-bottom:0">
+Provides <code>Style.Classic</code> (delegates to <code>Noise.cs</code>, bit-identical to the original
+scenes) and <code>Style.Canyons</code>, which layers three operators onto the same seam-safe coordinate
+scheme to produce mesa plateaus and near-vertical cliff bands. Settings are a serializable nested class
+so they appear in the Inspector and inside <code>EnvironmentProfile</code>.
+</p>
+</div>
+
+<p>
+The design constraint is stated in the file's header comment: the terrain must remain a single-valued
+2D height field — cheap, streamable, threadable — so canyon <i>walls</i> must be produced by shaping the
+height function itself, not by adding geometry. Three operators do this.
+</p>
+
+<h4>Operator 1 — domain warp</h4>
+<p>
+Ridged noise sampled on a regular lattice produces ridges that run in visibly straight, grid-aligned
+lines. Domain warping fixes this by displacing the sample point itself with a second, lower-frequency
+noise field before the main noise is evaluated:
+</p>
+<pre>float wx = Mathf.PerlinNoise((baseX + warpOffsetA.x) / warpFeatureScale,
+                             (baseY + warpOffsetA.y) / warpFeatureScale) * 2f - 1f;
+float wy = Mathf.PerlinNoise((baseX + warpOffsetB.x) / warpFeatureScale,
+                             (baseY + warpOffsetB.y) / warpFeatureScale) * 2f - 1f;
+baseX += wx * settings.warpStrength;
+baseY += wy * settings.warpStrength;</pre>
+<p>
+Two <i>independent</i> offsets (<code>warpOffsetA</code>, <code>warpOffsetB</code>) are required: reusing
+one offset for both components would make <code>wx == wy</code>, and the displacement would collapse onto
+the 45° diagonal instead of covering the plane. The offsets are drawn from the same PRNG stream
+immediately after the octave offsets, so warp and terrain remain locked together per seed. The warp
+field's feature size is <code>scale × warpScale</code> — expressed as a multiple of the main noise scale
+rather than an absolute number, so the warp stays proportionate when the user changes terrain scale.
+</p>
+<p>
+Critically, the warp is computed from <b>absolute coordinates only</b>, so it too is chunk-independent
+and the seam property survives.
+</p>
+
+<h4>Operator 2 — the ridge fold</h4>
+<p>
+Both a smooth and a ridged sum are accumulated in the same octave loop, from the same noise samples,
+then blended. The fold is one line:
+</p>
+<div class="eq">
+r = (1 − |2n − 1|)<sup>sharpness</sup>
+</div>
+<p>
+<code>2n − 1</code> maps Perlin's [0,1] to [−1,1]; the absolute value folds the negative half onto the
+positive, so the value that used to be the noise's <i>mid-line</i> (n = 0.5) becomes the
+<i>maximum</i> (r = 1) — and because the fold has a discontinuous first derivative there, the maximum is
+a sharp crest rather than a smooth hilltop. Raising to <code>sharpness</code> narrows the crest further:
+at 1.0 the ridge is a soft triangular wave; at 2.2 (the shipped value) it is a distinct knife edge; at
+4+ the terrain becomes spiky needles. Figure 6 plots this directly.
+</p>
+<div class="warn">
+<b>A real numerical bug, and its fix.</b> <code>Mathf.PerlinNoise</code> is documented as returning
+[0,1] but can return values slightly outside it. If <code>n</code> exceeds 1, then
+<code>1 − |2n − 1|</code> is negative, and <code>Mathf.Pow(negative, fractional)</code> returns
+<b>NaN</b>. A single NaN height propagates through the mesher into a vertex position, and Unity
+discards or corrupts the entire chunk mesh — a hole in the world from one sample. The guard is a
+<code>Clamp01</code> on the raw noise, with the reasoning recorded in-line:
+<pre style="margin:.4em 0 0"><span class="c">// PerlinNoise may return slightly outside [0,1]; unclamped,
+// the ridge fold below can go negative and Pow(neg, frac)
+// yields NaN, corrupting the whole chunk mesh.</span>
+float n = Mathf.Clamp01(Mathf.PerlinNoise(sampleX, sampleY));</pre>
+</div>
+<p>Both sums are then normalised deterministically — the same discipline as Global mode — and mixed:</p>
+<div class="eq">
+smooth01 = clamp01((Σ<sub>smooth</sub> + 1) / (maxPossible / 0.9))<br>
+ridge01 = clamp01(Σ<sub>ridge</sub> / maxPossible)<br>
+h = lerp(smooth01, ridge01, ridgeWeight)
+</div>
+<p>
+<code>ridgeWeight = 0</code> reproduces plain rolling fBm; <code>1</code> gives fully ridged mountains;
+the biomes ship 0.6 (Canyon) and 0.35 (Coral Plateau).
+</p>
+
+<h4>Operator 3 — terracing</h4>
+<p>
+Terracing quantises height into bands, producing flat mesa tops separated by steep risers. A naïve
+<code>floor</code> would give literal steps with vertical walls and aliased normals; instead the code
+uses a <i>gain curve</i> on the fractional part, which keeps the function continuous and monotonic while
+pushing most of the range toward the band's floor or ceiling:
+</p>
+<pre>static float Terrace(float h, int steps, float sharpness)
+{
+    float t = h * steps;
+    float band = Mathf.Floor(t);
+    float f = t - band;
+
+    <span class="c">// Gain curve: pushes f toward 0 or 1, keeping f(0)=0, f(0.5)=0.5, f(1)=1.</span>
+    float p = Mathf.Pow(f, sharpness);
+    f = p / (p + Mathf.Pow(1f - f, sharpness));
+
+    return (band + f) / steps;
+}</pre>
+<p>
+The three fixed points <code>f(0)=0</code>, <code>f(½)=½</code>, <code>f(1)=1</code> matter: they
+guarantee the curve is continuous <i>across</i> band boundaries, so no crack or normal discontinuity can
+appear at a band edge no matter how high <code>sharpness</code> goes. The result is blended with the
+unterraced height by <code>terraceStrength</code>, so the effect can be dialled from absent to full
+without ever leaving the valid range.
+</p>
+<p>
+Because the operator is monotonic it also cannot invert terrain or create overhangs — it is a
+reparameterisation of height, not a displacement. That is what makes it safe to expose to users at all.
+</p>
+
+<figure>
+  <div class="tight">
+    <div class="grid2">
+      <div><img src="figs/f2a_fbm.png" alt="plain fBm"><div class="plabel">(a) fBm only</div></div>
+      <div><img src="figs/f2b_warp.png" alt="warped"><div class="plabel">(b) + domain warp</div></div>
+    </div>
+    <div class="grid2" style="margin-top:4px">
+      <div><img src="figs/f2c_ridge.png" alt="ridged"><div class="plabel">(c) + ridge fold</div></div>
+      <div><img src="figs/f2d_terrace.png" alt="terraced"><div class="plabel">(d) + terracing</div></div>
+    </div>
+  </div>
+  <figcaption><b>Figure 4 — Operator ablation for the Canyons style</b> (75 × 75 m of height field,
+  hypsometric ramp plus shaded relief; identical seed and octave parameters throughout).
+  <b>Top-left:</b> plain fBm — isotropic blobs, no directional structure.
+  <b>Top-right:</b> + domain warp — the same features, displaced and meandered along the warp field's
+  flow. At the shipped <code>warpStrength</code> of 6 against a noise scale of 60 the effect is
+  deliberately subtle: it removes the grid-aligned regularity that ridged noise would otherwise
+  expose in the next panel, rather than restructuring the field.
+  <b>Bottom-left:</b> + ridge fold (weight 0.6, sharpness 2.4) — a connected network of sharp crests
+  appears where the noise mid-line runs; basins become closed depressions.
+  <b>Bottom-right:</b> + terracing (5 steps, sharpness 4, strength 0.65) — crest flanks collapse into
+  discrete benches and the basin floors flatten, giving the mesa-and-cliff-band reading. Plan view is
+  used deliberately: all three operators act on the height field, and banding and crest topology are
+  far more legible from above than in a perspective render.</figcaption>
+</figure>
+
+<figure>
+  <div class="grid2">
+    <img src="figs/f5a_terrace.svg" alt="terrace gain curve">
+    <img src="figs/f5b_ridge.svg" alt="ridge fold">
+  </div>
+  <figcaption><b>Figures 5 and 6 — The two shaping functions, plotted from the shipped code.</b>
+  <b>Left:</b> the terrace gain curve at 5 steps. At sharpness 1 the mapping is the identity (no
+  terracing); as sharpness rises the staircase sharpens while remaining continuous and monotonic, and
+  the three fixed points per band are visible as the crossing points. <b>Right:</b> the ridge fold
+  <code>(1−|2n−1|)<sup>s</sup></code>. The cusp at n = 0.5 is the crest former; raising <i>s</i>
+  narrows the crest and lowers the flanks, which is why high sharpness reads as knife-edge ridges.</figcaption>
+</figure>
+
+<h3>3.3&nbsp;&nbsp;<span class="mono">BiomeStyles.cs</span> — the locked height remap</h3>
+<div class="filecard">
+<h4>Assets/ProceduralTerrain/CreateEnv/BiomeStyles.cs</h4>
+<div class="meta"><span>54 lines</span><span><span class="tag">MAIN</span><span class="tag">static</span></span><span>namespace <code>CreateEnv</code></span></div>
+<p style="margin-bottom:0">
+Holds the half of a biome that users may select but not edit: the height-remap
+<code>AnimationCurve</code> and the base <code>TerrainShaper.Settings</code>. Both are constructed in
+code, so there are no asset references to break and no serialized curve for a user to drag into an
+invalid shape.
+</p>
+</div>
+<p>
+The normalised height from Stage 1 is not used directly as elevation. It is first passed through a
+remap curve, evaluated per vertex inside <code>MeshGenerator</code>:
+</p>
+<div class="eq">y = curve(h) × meshHeightMultiplier × Scale</div>
+<p>
+The curve is what converts a statistical distribution into a landform. Perlin sums are approximately
+Gaussian and cluster around the middle of their range; feeding that straight into elevation produces
+uniformly bumpy ground with no flat areas and no distinct highlands. The two shipped curves shape that
+distribution differently:
+</p>
+<table>
+  <tr><th style="width:16%">Style</th><th style="width:42%">Keyframes (time, value, inTangent, outTangent)</th><th>Landform effect</th></tr>
+  <tr><td><b>Classic</b></td>
+      <td class="mono">(0, 0, 0, 0.6) (0.5, 0.45, 1, 1) (1, 1, 1.2, 0)</td>
+      <td>Near-linear with soft ends — gentle rolling dunes, relief distributed evenly.</td></tr>
+  <tr><td><b>Canyons</b></td>
+      <td class="mono">(0, 0, 0, 0.2) (0.45, 0.25, 1.4, 1.4) (0.7, 0.8, 1.4, 0.5) (1, 1, 0.2, 0)</td>
+      <td>Flat low shelf up to h≈0.45, then a steep 0.25→0.8 climb over a narrow band, then a flat top.
+          Compresses mid-heights into cliffs and expands the extremes into flat basins and mesas.</td></tr>
+</table>
+<figure style="margin-top:.5em">
+  <img src="figs/f5c_heightcurves.svg" alt="height curves" style="max-width:78%">
+  <figcaption><b>Figure 7 — The two height-remap curves</b>, evaluated with Unity's cubic-Hermite
+  interpolation from the exact keyframes above. The Canyons curve's steep central segment is the cliff
+  former: a small change in noise value maps to a large change in elevation there, while the flat
+  segments at either end produce the basin floors and mesa tops. Note both curves are monotonic and
+  stay within [0,1].</figcaption>
+</figure>
+<div class="note">
+<b>Why the curve is not user-editable.</b> A non-monotonic curve would map two different noise values
+to the same elevation and, worse, could invert a region — the visual mesh and the collider are built
+from the same curve so they would stay consistent, but a curve leaving [0,1] would break invariant I-3
+(peaks below the water surface), which is derived from <code>meshHeightMultiplier</code> alone. Locking
+the curve per style means I-3 can be checked with a single multiplication instead of sampling a
+user-supplied function. The comment in the file states the intent directly: <i>"Keeping the curve out of
+user hands is what prevents inverted/NaN terrain."</i>
+</div>
+<p>
+<code>BuildShaper(profile)</code> completes the pattern: for Classic it returns a settings object with
+only <code>style</code> set, deliberately ignoring every canyon slider in the profile (they are also
+hidden in the UI), so a profile carrying stale canyon values from a previous edit cannot leak into a
+dunes biome.
+</p>
+
+<!-- ═══════════════════════════ 4. STAGE 2 ═══════════════════════════ -->
+<div class="section">
+<h2>4&nbsp;&nbsp;Stage 2 — Meshing</h2>
+<p>
+Stage 2 converts a 35 × 35 height array into triangles. It runs on a worker thread, produces a plain
+data object, and does exactly three non-obvious things: it computes normals from samples it does not
+mesh, it decimates by a stride constrained to divide 32, and it hangs a hidden curtain off every chunk
+edge.
+</p>
+
+<h3>4.1&nbsp;&nbsp;<span class="mono">MeshGenerator.cs</span></h3>
+<div class="filecard">
+<h4>Assets/ProceduralTerrain/Scripts/MeshGenerator.cs</h4>
+<div class="meta"><span>163 lines</span><span><span class="tag thr">WORKER</span><span class="tag">static</span></span><span>returns <code>MeshData</code> (POD)</span></div>
+<p style="margin-bottom:0">
+<code>GenerateTerrainMesh(borderedHeightMap, heightMultiplier, heightCurve, levelOfDetail)</code>.
+Evaluates the remap curve over the whole bordered array, emits a decimated vertex grid with
+central-difference normals and LOD-stable UVs, then appends the skirt.
+</p>
+</div>
+
+<h4>Thread safety of the height curve</h4>
+<p>
+The first executable line of the function is a defect fix that is easy to miss and produces
+non-deterministic corruption when absent:
+</p>
+<pre><span class="c">// AnimationCurve is not thread-safe; copy keys before sampling off-thread.</span>
+AnimationCurve heightCurve = new AnimationCurve(_heightCurve.keys);</pre>
+<p>
+<code>AnimationCurve.Evaluate</code> caches the last-used keyframe segment inside the curve object to
+accelerate sequential lookups. Two worker threads evaluating the <i>same</i> curve instance race on that
+cache and can each read a segment index the other just changed, producing values interpolated from the
+wrong keyframes — wrong heights, intermittently, on some chunks only, and never reproducible in the
+editor where only one chunk builds at a time. Copying the keyframes gives each invocation a private
+curve.
+</p>
+
+<h4>Decimation and the LOD stride</h4>
+<pre>int meshSimplificationIncrement = (levelOfDetail == 0) ? 1 : levelOfDetail * 2;
+int verticesPerLine = (meshSize - 1) / meshSimplificationIncrement + 1;</pre>
+<table>
+  <tr><th style="width:10%">LOD</th><th style="width:14%">Stride</th><th style="width:20%">Vertices/line</th><th style="width:18%">Grid vertices</th><th>Valid?</th></tr>
+  <tr><td>0</td><td>1</td><td>33</td><td>1 089</td><td>yes — full resolution, carries the collider</td></tr>
+  <tr><td>1</td><td>2</td><td>17</td><td>289</td><td>yes</td></tr>
+  <tr><td>2</td><td>4</td><td>9</td><td>81</td><td>yes</td></tr>
+  <tr><td>3</td><td>6</td><td>—</td><td>—</td><td><b>no</b> — 32 / 6 is not an integer</td></tr>
+  <tr><td>4</td><td>8</td><td>5</td><td>25</td><td>yes</td></tr>
+</table>
+<p>
+A LOD-2 chunk carries 7% of the vertices of a LOD-0 chunk, which is where the streaming budget comes
+from: the three view-distance presets place only the innermost ring at LOD 0.
+</p>
+
+<h4>4.2&nbsp;&nbsp;Bordered normals — seamless lighting without stitching</h4>
+<p>
+Stage 1 generates <code>mapChunkSize + 2</code> = 35 samples per side, but only the inner 33 become
+vertices. The extra ring exists solely so that a vertex on the chunk's edge has neighbours on
+<i>all four sides</i> when its normal is computed:
+</p>
+<pre>int bx = x + 1, by = y + 1;                <span class="c">// +1 skips into the bordered array</span>
+
+<span class="c">// Central-difference normal (map's y axis points along -Z).</span>
+float dX = heights[bx + 1, by] - heights[bx - 1, by];
+float dY = heights[bx, by + 1] - heights[bx, by - 1];
+Vector3 normal = new Vector3(-dX * 0.5f, 1f, dY * 0.5f);
+meshData.Normals[vertexIndex] = normal.normalized;</pre>
+<p>
+Those border samples are generated by the same seam-safe coordinate scheme as the neighbouring chunk's
+interior samples, so they are bit-identical to it. Both chunks therefore compute <i>the same normal</i>
+for the vertices they share, and the lighting runs continuously across the border with no welding, no
+neighbour lookups at runtime, and no <code>Mesh.RecalculateNormals()</code> — which would be both
+main-thread-bound and unable to see across the chunk boundary anyway.
+</p>
+
+<figure>
+<div class="diagram">
+<svg viewBox="0 0 700 262" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="ar3" markerWidth="8" markerHeight="8" refX="6.6" refY="2.9" orient="auto">
+      <path d="M0,0 L7,2.9 L0,5.8 z" fill="#c0392b"/>
+    </marker>
+  </defs>
+  <!-- left: bordered array -->
+  <text x="16" y="18" font-size="9.6" font-weight="bold" fill="#0d3b4c">Chunk A — 35 × 35 generated, 33 × 33 meshed</text>
+  <g>
+    <!-- border ring -->
+    <rect x="16" y="28" width="216" height="216" fill="#fdf1e6" stroke="#d98c3f" stroke-dasharray="4 3"/>
+    <rect x="46" y="58" width="156" height="156" fill="#eef6f8" stroke="#1f6f8b"/>
+    <!-- grid -->
+    <g stroke="#b9ccd3" stroke-width=".55">
+      <!-- vertical -->
+      <g id="v"></g>
+    </g>
+    <text x="124" y="45" font-size="7.6" fill="#96551b" text-anchor="middle">border ring — normals only, never meshed</text>
+    <text x="124" y="140" font-size="8.4" fill="#14536a" text-anchor="middle" font-weight="bold">33 × 33 vertex grid</text>
+    <text x="124" y="154" font-size="7.6" fill="#2b5a68" text-anchor="middle">(decimated by the LOD stride)</text>
+    <text x="124" y="232" font-size="7.6" fill="#96551b" text-anchor="middle">generated by the same absolute-coordinate scheme</text>
+  </g>
+
+  <!-- right: shared edge detail -->
+  <text x="264" y="18" font-size="9.6" font-weight="bold" fill="#0d3b4c">The shared edge, magnified</text>
+  <rect x="264" y="28" width="188" height="216" fill="#eef6f8" stroke="#1f6f8b"/>
+  <rect x="452" y="28" width="188" height="216" fill="#f2f8f0" stroke="#5c9e60"/>
+  <text x="358" y="44" font-size="8.4" fill="#14536a" text-anchor="middle" font-weight="bold">CHUNK A interior</text>
+  <text x="546" y="44" font-size="8.4" fill="#2f6b33" text-anchor="middle" font-weight="bold">CHUNK B interior</text>
+  <line x1="452" y1="28" x2="452" y2="244" stroke="#8e2b20" stroke-width="2"/>
+  <text x="452" y="258" font-size="8" fill="#8e2b20" text-anchor="middle">shared edge</text>
+
+  <!-- sample dots -->
+  <g fill="#1f6f8b">
+    <circle cx="392" cy="100" r="4"/><circle cx="422" cy="100" r="4"/>
+    <circle cx="392" cy="160" r="4"/><circle cx="422" cy="160" r="4"/>
+  </g>
+  <g fill="#8e2b20">
+    <circle cx="452" cy="100" r="5"/><circle cx="452" cy="160" r="5"/>
+  </g>
+  <g fill="#2f6b33">
+    <circle cx="482" cy="100" r="4"/><circle cx="512" cy="100" r="4"/>
+    <circle cx="482" cy="160" r="4"/><circle cx="512" cy="160" r="4"/>
+  </g>
+
+  <text x="452" y="86" font-size="7.4" fill="#8e2b20" text-anchor="middle">edge vertex</text>
+  <line x1="422" y1="130" x2="446" y2="130" stroke="#c0392b" stroke-width="1.3" marker-end="url(#ar3)"/>
+  <line x1="482" y1="130" x2="458" y2="130" stroke="#c0392b" stroke-width="1.3" marker-end="url(#ar3)"/>
+  <text x="452" y="146" font-size="7.2" fill="#8e2b20" text-anchor="middle">dX uses BOTH sides</text>
+
+  <rect x="270" y="182" width="364" height="54" rx="3" fill="#fff" stroke="#c3d2d8"/>
+  <text x="278" y="197" font-size="7.6" fill="#17323d">Chunk A's <tspan font-family="Menlo, monospace">bx + 1</tspan> sample lies inside chunk B's territory —</text>
+  <text x="278" y="209" font-size="7.6" fill="#17323d">generated independently, but bit-identical (§3.1). Both chunks</text>
+  <text x="278" y="221" font-size="7.6" fill="#17323d">therefore compute the SAME normal for the shared vertex, so</text>
+  <text x="278" y="233" font-size="7.6" fill="#17323d">lighting is continuous with no welding and no runtime cost.</text>
+</svg>
+</div>
+<figcaption><b>Figure 8 — The one-sample border ring and why it exists.</b> The ring is generated but
+never meshed; its only purpose is to supply the fourth neighbour to the central-difference normal of
+each edge vertex. Combined with the bit-identical coordinate scheme of §3.1, this makes normals agree
+exactly across chunk borders — the difference between a visible grid of seams and a continuous
+seabed.</figcaption>
+</figure>
+
+<h4>LOD-stable UVs</h4>
+<pre>meshData.UVs[vertexIndex] = new Vector2(x / (float)(meshSize - 1),
+                                        y / (float)(meshSize - 1));</pre>
+<p>
+UVs are normalised to [0,1] across the chunk regardless of LOD, so a chunk's texture mapping does not
+shift when it swaps resolution. In practice the terrain shader ignores these UVs and derives its own
+from world position (§8.3) precisely so that tiling is continuous across chunks; the UVs remain
+meaningful for the editor preview path and for any material that wants per-chunk parameterisation.
+</p>
+
+<h4>4.3&nbsp;&nbsp;LOD skirts — hiding cracks in O(1)</h4>
+<p>
+When two adjacent chunks render at different LODs, the coarser chunk's edge has fewer vertices than the
+finer one's. The shared edge is then geometrically a different polyline on each side, and the mismatch
+opens T-junction cracks — thin gaps through which the background is visible, made worse by the fact that
+they appear and disappear as the viewer moves.
+</p>
+<p>
+The two standard solutions are edge stitching (generate transition geometry per LOD pair — correct but
+combinatorial) and geomorphing (interpolate vertex heights between levels — smooth but requires both
+levels resident). This codebase uses a third, cheaper option: accept the crack and make it invisible by
+putting terrain behind it.
+</p>
+<pre><span class="c">// Taller terrain (canyon biomes) opens taller LOD seams on cliff edges,
+// so the hidden curtain grows with the height multiplier.</span>
+float skirtDepth = Mathf.Max(1.5f, heightMultiplier * 0.25f);
+AddSkirt(meshData, verticesPerLine, skirtDepth);</pre>
+<p>
+Every border vertex gets a partner directly below it, and the two rings are connected by a quad strip —
+a vertical curtain hanging off the chunk's perimeter. Looking through a crack, the eye sees the
+neighbouring chunk's curtain rather than the skybox. The depth scales with
+<code>heightMultiplier</code> because a taller terrain has steeper edges and therefore larger vertical
+mismatches between LODs; the constant <code>1.5</code> floor keeps flat biomes covered.
+</p>
+<p>The border must be walked in a consistent rotational order for the curtain's triangles to face outward. <code>BorderLoopIndex</code> does this by mapping a single loop parameter <i>k</i> onto the four sides:</p>
+<pre>static int BorderLoopIndex(int k, int verticesPerLine)
+{
+    int side = k / (verticesPerLine - 1);
+    int j    = k % (verticesPerLine - 1);
+    int last = verticesPerLine - 1;
+    switch (side) {
+        case 0:  gx = j;        gy = 0;        break;  <span class="c">// north (+Z edge)</span>
+        case 1:  gx = last;     gy = j;        break;  <span class="c">// east  (+X edge)</span>
+        case 2:  gx = last - j; gy = last;     break;  <span class="c">// south (-Z edge)</span>
+        default: gx = 0;        gy = last - j; break;  <span class="c">// west  (-X edge)</span>
+    }
+    return gy * verticesPerLine + gx;
+}</pre>
+<p>
+Note <code>last − j</code> on the south and west sides: this reverses those two runs so the loop
+traverses the perimeter clockwise as seen from above, continuously, without duplicating corners. The
+cost is <code>4(V−1)</code> extra vertices and the same number of quads — for LOD 0, 128 vertices on top
+of 1 089, about 12%. Constant in the number of LOD levels, with no dependence on which LOD the
+neighbour happens to be using.
+</p>
+
+<figure>
+<div class="diagram">
+<svg viewBox="0 0 700 250" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <text x="16" y="16" font-size="9.6" font-weight="bold" fill="#8e2b20">Without skirt — LOD crack shows background</text>
+  <text x="374" y="16" font-size="9.6" font-weight="bold" fill="#2f6b33">With skirt — crack shows terrain</text>
+
+  <!-- LEFT -->
+  <rect x="16" y="26" width="320" height="150" fill="#cfe3ea" stroke="none"/>
+  <!-- fine chunk profile -->
+  <path d="M16,120 L46,108 L76,116 L106,98 L136,104 L166,92 L172,92" fill="none" stroke="#1f6f8b" stroke-width="2.4"/>
+  <path d="M16,120 L46,108 L76,116 L106,98 L136,104 L166,92 L172,92 L172,176 L16,176 z" fill="#e8dfc4" stroke="none"/>
+  <!-- coarse chunk profile -->
+  <path d="M180,116 L240,86 L300,100 L336,88" fill="none" stroke="#2f6b33" stroke-width="2.4"/>
+  <path d="M180,116 L240,86 L300,100 L336,88 L336,176 L180,176 z" fill="#dfe6cd" stroke="none"/>
+  <!-- gap -->
+  <rect x="172" y="88" width="8" height="88" fill="#2f7d95"/>
+  <text x="176" y="200" font-size="8" fill="#8e2b20" text-anchor="middle">gap</text>
+  <line x1="176" y1="192" x2="176" y2="180" stroke="#8e2b20" stroke-width="1.1"/>
+  <text x="90" y="168" font-size="7.6" fill="#4a5f66">LOD 0 (stride 1)</text>
+  <text x="250" y="168" font-size="7.6" fill="#4a5f66">LOD 2 (stride 4)</text>
+  <text x="26" y="40" font-size="7.6" fill="#2f7d95">background water visible through the crack</text>
+
+  <!-- RIGHT -->
+  <rect x="374" y="26" width="310" height="150" fill="#cfe3ea" stroke="none"/>
+  <path d="M374,120 L404,108 L434,116 L464,98 L494,104 L524,92 L530,92" fill="none" stroke="#1f6f8b" stroke-width="2.4"/>
+  <path d="M374,120 L404,108 L434,116 L464,98 L494,104 L524,92 L530,92 L530,176 L374,176 z" fill="#e8dfc4"/>
+  <path d="M538,116 L598,86 L658,100 L684,88" fill="none" stroke="#2f6b33" stroke-width="2.4"/>
+  <path d="M538,116 L598,86 L658,100 L684,88 L684,176 L538,176 z" fill="#dfe6cd"/>
+  <!-- skirts fill the gap -->
+  <rect x="524" y="92" width="8" height="70" fill="#b8a877" stroke="#8f8154" stroke-width=".7"/>
+  <rect x="532" y="116" width="8" height="46" fill="#a9b184" stroke="#7d855c" stroke-width=".7"/>
+  <text x="530" y="200" font-size="8" fill="#2f6b33" text-anchor="middle">curtains</text>
+  <line x1="530" y1="192" x2="530" y2="166" stroke="#2f6b33" stroke-width="1.1"/>
+
+  <rect x="16" y="212" width="668" height="32" rx="3" fill="#f6f9fa" stroke="#c3d2d8"/>
+  <text x="24" y="226" font-size="7.8" fill="#17323d">Each chunk drops a curtain of depth <tspan font-family="Menlo, monospace">max(1.5, heightMultiplier × 0.25)</tspan> from its border loop, wound outward.</text>
+  <text x="24" y="238" font-size="7.8" fill="#17323d">Cost: 4(V−1) vertices per chunk, independent of the neighbour's LOD. The crack still exists; it simply has terrain behind it.</text>
+</svg>
+</div>
+<figcaption><b>Figure 9 — LOD crack mitigation by hidden skirts</b>, drawn in cross-section through a
+chunk boundary. Stitching would eliminate the gap but needs geometry per LOD pair; the skirt is
+constant-cost and LOD-agnostic. The visual result is equivalent at grazing angles, which is the only
+way the seam is ever seen.</figcaption>
+</figure>
+
+<h3>4.4&nbsp;&nbsp;<span class="mono">MapData.cs</span> and <span class="mono">MeshData</span></h3>
+<div class="filecard">
+<h4>Assets/ProceduralTerrain/Scripts/MapData.cs</h4>
+<div class="meta"><span>28 lines</span><span><span class="tag thr">WORKER</span><span class="tag">struct</span></span></div>
+<p style="margin-bottom:0">
+<code>MapData</code> is a readonly struct wrapping the height array — deliberately minimal so it can
+cross the thread boundary without synchronisation concerns. Its documentation records a removal:
+<i>"colourMap has been removed; terrain colouring is now handled entirely by the Material."</i> The
+original design baked a per-chunk vertex-colour texture; that cost a texture allocation and upload per
+chunk and has been replaced by the procedural shaders of §8. <code>TerrainType</code> (name, height
+threshold, colour) survives for the editor preview only.
+</p>
+</div>
+<p>
+<code>MeshData</code> (declared at the foot of <code>MeshGenerator.cs</code>) is the matching container
+for geometry: four parallel arrays sized exactly for the grid plus skirt, an append-only
+<code>AddTriangle</code>, and a single main-thread method:
+</p>
+<pre><span class="c">// Main thread only.</span>
+public Mesh CreateMesh()
+{
+    Mesh mesh = new Mesh { vertices = Vertices, triangles = Triangles,
+                           uv = UVs, normals = Normals };
+    return mesh;
+}</pre>
+<p>
+The array sizes encode the skirt arithmetic and are worth checking against §4.3:
+<code>gridVerts + 4(meshWidth − 1)</code> vertices, and
+<code>(w−1)(h−1)·6 + skirtVerts·6</code> triangle indices. Pre-sizing rather than using
+<code>List&lt;T&gt;</code> avoids reallocation during generation, which matters because this runs
+concurrently on several threads for several chunks.
+</p>
+</div>

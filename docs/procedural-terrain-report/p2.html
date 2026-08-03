@@ -1,0 +1,404 @@
+<!-- ═══════════════════════════ 2. ARCHITECTURE ═══════════════════════════ -->
+<div class="section">
+<h2>2&nbsp;&nbsp;Architecture</h2>
+
+<h3>2.1&nbsp;&nbsp;The six-stage pipeline</h3>
+<p>
+Figure 1 is the whole subsystem. Read it top to bottom: configuration is resolved once at startup and
+flows down; from then on the only live loop is the streaming loop on the left, which pulls height data
+through the worker threads and pushes finished chunks into the scene, where decorators populate them
+and the shared medium renders them.
+</p>
+
+<figure>
+<div class="diagram">
+<svg viewBox="0 0 720 486" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7.5" refY="3.2" orient="auto">
+      <path d="M0,0 L8,3.2 L0,6.4 z" fill="#4a6a75"/>
+    </marker>
+    <marker id="arb" markerWidth="9" markerHeight="9" refX="7.5" refY="3.2" orient="auto">
+      <path d="M0,0 L8,3.2 L0,6.4 z" fill="#1f6f8b"/>
+    </marker>
+  </defs>
+
+  <!-- Stage 6: config (top band) -->
+  <rect x="8" y="6" width="704" height="86" rx="5" fill="#fdf5ec" stroke="#e0b585"/>
+  <text x="18" y="21" font-size="9.5" font-weight="bold" fill="#96551b">STAGE 6 — AUTHORING (runs once, at Start)</text>
+  <rect x="20" y="30" width="112" height="46" rx="4" fill="#fff" stroke="#d98c3f"/>
+  <text x="76" y="46" font-size="8.6" text-anchor="middle" fill="#7a4413" font-weight="bold">SimpleEnvironment</text>
+  <text x="76" y="57" font-size="8.6" text-anchor="middle" fill="#7a4413" font-weight="bold">Settings</text>
+  <text x="76" y="69" font-size="7.5" text-anchor="middle" fill="#96551b">10 user choices</text>
+
+  <rect x="152" y="30" width="112" height="46" rx="4" fill="#fff" stroke="#d98c3f"/>
+  <text x="208" y="50" font-size="8.6" text-anchor="middle" fill="#7a4413" font-weight="bold">Mapper</text>
+  <text x="208" y="63" font-size="7.5" text-anchor="middle" fill="#96551b">recipes + lerps</text>
+
+  <rect x="284" y="30" width="112" height="46" rx="4" fill="#fff" stroke="#d98c3f"/>
+  <text x="340" y="50" font-size="8.6" text-anchor="middle" fill="#7a4413" font-weight="bold">EnvironmentProfile</text>
+  <text x="340" y="63" font-size="7.5" text-anchor="middle" fill="#96551b">~50 fields (JSON)</text>
+
+  <rect x="416" y="30" width="112" height="46" rx="4" fill="#fff" stroke="#c0392b"/>
+  <text x="472" y="46" font-size="8.6" text-anchor="middle" fill="#8e2b20" font-weight="bold">Bounds.Clamp</text>
+  <text x="472" y="58" font-size="7.5" text-anchor="middle" fill="#a33a2b">ranges + I-1…I-6</text>
+  <text x="472" y="69" font-size="7.5" text-anchor="middle" fill="#a33a2b">on load AND save</text>
+
+  <rect x="548" y="30" width="146" height="46" rx="4" fill="#fff" stroke="#d98c3f"/>
+  <text x="621" y="46" font-size="8.6" text-anchor="middle" fill="#7a4413" font-weight="bold">EnvironmentLoader</text>
+  <text x="621" y="58" font-size="7.5" text-anchor="middle" fill="#96551b">ordered fan-out;</text>
+  <text x="621" y="69" font-size="7.5" text-anchor="middle" fill="#96551b">streaming applied LAST</text>
+
+  <line x1="132" y1="53" x2="150" y2="53" stroke="#4a6a75" stroke-width="1.3" marker-end="url(#ar)"/>
+  <line x1="264" y1="53" x2="282" y2="53" stroke="#4a6a75" stroke-width="1.3" marker-end="url(#ar)"/>
+  <line x1="396" y1="53" x2="414" y2="53" stroke="#4a6a75" stroke-width="1.3" marker-end="url(#ar)"/>
+  <line x1="528" y1="53" x2="546" y2="53" stroke="#4a6a75" stroke-width="1.3" marker-end="url(#ar)"/>
+
+  <!-- AR anchor -->
+  <rect x="8" y="104" width="216" height="52" rx="5" fill="#eef6f8" stroke="#3d9bb5"/>
+  <text x="18" y="119" font-size="9.5" font-weight="bold" fill="#14536a">AR ANCHOR</text>
+  <text x="18" y="133" font-size="7.8" fill="#2b5a68">EndlessTerrainPlacer: plane raycast →</text>
+  <text x="18" y="145" font-size="7.8" fill="#2b5a68">AttachAnchor → instantiate prefab</text>
+
+  <!-- viewer -->
+  <rect x="240" y="104" width="150" height="52" rx="5" fill="#eef6f8" stroke="#3d9bb5"/>
+  <text x="250" y="119" font-size="9.5" font-weight="bold" fill="#14536a">VIEWER</text>
+  <text x="250" y="133" font-size="7.8" fill="#2b5a68">Camera.main position →</text>
+  <text x="250" y="145" font-size="7.8" fill="#2b5a68">chunk-space coordinate</text>
+
+  <!-- Stage 3 streaming -->
+  <rect x="8" y="170" width="382" height="140" rx="5" fill="#f0f7f9" stroke="#3d9bb5"/>
+  <text x="18" y="185" font-size="9.5" font-weight="bold" fill="#14536a">STAGE 3 — STREAMING (per frame, main thread)</text>
+  <rect x="20" y="194" width="164" height="40" rx="4" fill="#fff" stroke="#1f6f8b"/>
+  <text x="102" y="209" font-size="8.4" text-anchor="middle" fill="#0d3b4c" font-weight="bold">EndlessTerrain</text>
+  <text x="102" y="222" font-size="7.4" text-anchor="middle" fill="#2b5a68">visible set · LOD · cull</text>
+  <rect x="20" y="244" width="164" height="40" rx="4" fill="#fff" stroke="#1f6f8b"/>
+  <text x="102" y="259" font-size="8.4" text-anchor="middle" fill="#0d3b4c" font-weight="bold">TerrainChunk</text>
+  <text x="102" y="272" font-size="7.4" text-anchor="middle" fill="#2b5a68">mesh · collider@LOD0 · props</text>
+  <rect x="206" y="194" width="172" height="90" rx="4" fill="#fff" stroke="#2f6b33"/>
+  <text x="292" y="209" font-size="8.4" text-anchor="middle" fill="#2f6b33" font-weight="bold">MapGenerator</text>
+  <text x="292" y="222" font-size="7.4" text-anchor="middle" fill="#3d7a42">ThreadPool dispatch</text>
+  <text x="292" y="240" font-size="7.4" text-anchor="middle" fill="#3d7a42">2 lock-guarded queues</text>
+  <text x="292" y="253" font-size="7.4" text-anchor="middle" fill="#3d7a42">drained in Update()</text>
+  <text x="292" y="271" font-size="7.4" text-anchor="middle" fill="#3d7a42">→ main-thread callbacks</text>
+
+  <line x1="102" y1="234" x2="102" y2="242" stroke="#4a6a75" stroke-width="1.3" marker-end="url(#ar)"/>
+  <line x1="184" y1="214" x2="204" y2="214" stroke="#4a6a75" stroke-width="1.3" marker-end="url(#ar)"/>
+  <line x1="204" y1="264" x2="186" y2="264" stroke="#4a6a75" stroke-width="1.3" marker-end="url(#ar)"/>
+
+  <!-- Stages 1-2 worker -->
+  <rect x="406" y="170" width="306" height="140" rx="5" fill="#f2f8f0" stroke="#5c9e60"/>
+  <text x="416" y="185" font-size="9.5" font-weight="bold" fill="#2f6b33">STAGES 1–2 — WORKER THREADS</text>
+  <rect x="418" y="194" width="134" height="46" rx="4" fill="#fff" stroke="#2f6b33"/>
+  <text x="485" y="210" font-size="8.4" text-anchor="middle" fill="#2f6b33" font-weight="bold">Noise / TerrainShaper</text>
+  <text x="485" y="223" font-size="7.4" text-anchor="middle" fill="#3d7a42">35×35 bordered</text>
+  <text x="485" y="234" font-size="7.4" text-anchor="middle" fill="#3d7a42">height field</text>
+  <rect x="566" y="194" width="134" height="46" rx="4" fill="#fff" stroke="#2f6b33"/>
+  <text x="633" y="210" font-size="8.4" text-anchor="middle" fill="#2f6b33" font-weight="bold">MeshGenerator</text>
+  <text x="633" y="223" font-size="7.4" text-anchor="middle" fill="#3d7a42">verts · normals · UVs</text>
+  <text x="633" y="234" font-size="7.4" text-anchor="middle" fill="#3d7a42">skirt · triangles</text>
+  <rect x="418" y="252" width="282" height="32" rx="4" fill="#fffdf4" stroke="#c9a227"/>
+  <text x="559" y="266" font-size="7.6" text-anchor="middle" fill="#7a5d0a">No Unity objects touched · AnimationCurve copied per call</text>
+  <text x="559" y="277" font-size="7.6" text-anchor="middle" fill="#7a5d0a">MeshData is POD; CreateMesh() only on the main thread</text>
+  <line x1="552" y1="217" x2="564" y2="217" stroke="#4a6a75" stroke-width="1.3" marker-end="url(#ar)"/>
+  <line x1="390" y1="228" x2="404" y2="228" stroke="#1f6f8b" stroke-width="1.6" marker-end="url(#arb)"/>
+
+  <!-- Stage 4 -->
+  <rect x="8" y="324" width="352" height="96" rx="5" fill="#f4f9f2" stroke="#5c9e60"/>
+  <text x="18" y="339" font-size="9.5" font-weight="bold" fill="#2f6b33">STAGE 4 — POPULATION (on chunk approach)</text>
+  <rect x="20" y="348" width="158" height="30" rx="4" fill="#fff" stroke="#2f6b33"/>
+  <text x="99" y="367" font-size="8.2" text-anchor="middle" fill="#2f6b33" font-weight="bold">TerrainDetailScatter</text>
+  <rect x="186" y="348" width="164" height="30" rx="4" fill="#fff" stroke="#2f6b33"/>
+  <text x="268" y="367" font-size="8.2" text-anchor="middle" fill="#2f6b33" font-weight="bold">ProceduralFeatureScatter</text>
+  <rect x="20" y="384" width="330" height="28" rx="4" fill="#fff" stroke="#8a8f94"/>
+  <text x="185" y="402" font-size="7.8" text-anchor="middle" fill="#3f4c52">hash(chunkX, chunkZ, seed) → System.Random → identical on return</text>
+  <line x1="102" y1="284" x2="102" y2="346" stroke="#4a6a75" stroke-width="1.3" marker-end="url(#ar)"/>
+
+  <!-- Stage 5 -->
+  <rect x="376" y="324" width="336" height="96" rx="5" fill="#f6f1f8" stroke="#8b6a95"/>
+  <text x="386" y="339" font-size="9.5" font-weight="bold" fill="#6a3f75">STAGE 5 — RENDERING</text>
+  <rect x="388" y="348" width="150" height="30" rx="4" fill="#fff" stroke="#8b6a95"/>
+  <text x="463" y="367" font-size="8.2" text-anchor="middle" fill="#6a3f75" font-weight="bold">UnderwaterEnvironment</text>
+  <rect x="546" y="348" width="156" height="30" rx="4" fill="#fff" stroke="#8b6a95"/>
+  <text x="624" y="362" font-size="8.2" text-anchor="middle" fill="#6a3f75" font-weight="bold">15 shader globals</text>
+  <text x="624" y="373" font-size="7.2" text-anchor="middle" fill="#7d5a88">sRGB→linear converted</text>
+  <rect x="388" y="384" width="314" height="28" rx="4" fill="#fff" stroke="#8a8f94"/>
+  <text x="545" y="402" font-size="7.8" text-anchor="middle" fill="#3f4c52">UnderwaterCommon.hlsl → 8 URP shaders (sand, rock, kelp, prop, glow, sky, water, snow)</text>
+  <line x1="538" y1="363" x2="544" y2="363" stroke="#4a6a75" stroke-width="1.3" marker-end="url(#ar)"/>
+
+  <!-- bottom note -->
+  <rect x="8" y="432" width="704" height="46" rx="5" fill="#fbfcfd" stroke="#c3d2d8"/>
+  <text x="18" y="448" font-size="8.4" font-weight="bold" fill="#0d3b4c">INVARIANT COUPLING (the arrows that make it a system, not a pile of features)</text>
+  <text x="18" y="461" font-size="7.6" fill="#3f4c52">Stage 6 constrains Stage 5's fade distance below Stage 3's streaming reach (I-2) → the world boundary is provably invisible.</text>
+  <text x="18" y="472" font-size="7.6" fill="#3f4c52">Stage 3 guarantees a LOD-0 collider before Stage 4 raycasts against it → props can never fail to find ground.</text>
+</svg>
+</div>
+<figcaption><b>Figure 1 — Subsystem architecture.</b> Orange = configuration, resolved once at
+<code>Start</code>. Blue = main-thread streaming. Green = worker-thread generation and content.
+Purple = rendering. The two notes at the bottom are the cross-stage invariants that §9.3 formalises;
+they are the reason the parts compose rather than merely coexist.</figcaption>
+</figure>
+
+<h3>2.2&nbsp;&nbsp;Threading model</h3>
+<p>
+Unity's API is main-thread-only, but height-field synthesis and meshing are pure arithmetic over arrays
+and are the expensive part. The subsystem therefore splits precisely along that line. Figure 2 shows one
+chunk's full life cycle across the thread boundary.
+</p>
+
+<figure>
+<div class="diagram">
+<svg viewBox="0 0 720 330" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="ar2" markerWidth="9" markerHeight="9" refX="7.5" refY="3.2" orient="auto">
+      <path d="M0,0 L8,3.2 L0,6.4 z" fill="#4a6a75"/>
+    </marker>
+  </defs>
+  <rect x="8" y="8" width="350" height="314" rx="5" fill="#f0f7f9" stroke="#3d9bb5"/>
+  <rect x="366" y="8" width="346" height="314" rx="5" fill="#f2f8f0" stroke="#5c9e60"/>
+  <text x="183" y="26" font-size="10" font-weight="bold" fill="#14536a" text-anchor="middle">MAIN THREAD</text>
+  <text x="539" y="26" font-size="10" font-weight="bold" fill="#2f6b33" text-anchor="middle">THREADPOOL WORKER</text>
+
+  <line x1="120" y1="34" x2="120" y2="316" stroke="#9fb6bd" stroke-width="1.4" stroke-dasharray="4 3"/>
+  <line x1="539" y1="34" x2="539" y2="316" stroke="#a8c4a8" stroke-width="1.4" stroke-dasharray="4 3"/>
+
+  <g font-size="7.9">
+    <rect x="20" y="40" width="200" height="26" rx="3" fill="#fff" stroke="#1f6f8b"/>
+    <text x="28" y="57" fill="#17323d">viewer moves &gt; 0.5 chunk units</text>
+
+    <rect x="20" y="76" width="200" height="26" rx="3" fill="#fff" stroke="#1f6f8b"/>
+    <text x="28" y="93" fill="#17323d">new TerrainChunk(coord, …)</text>
+
+    <rect x="20" y="112" width="200" height="26" rx="3" fill="#fff" stroke="#1f6f8b"/>
+    <text x="28" y="129" fill="#17323d">RequestMapData(centre, cb)</text>
+
+    <rect x="392" y="112" width="290" height="40" rx="3" fill="#fff" stroke="#2f6b33"/>
+    <text x="400" y="128" fill="#17323d">GenerateMapData: 35×35 height field</text>
+    <text x="400" y="141" fill="#5b6f77">Noise.cs or TerrainShaper.cs · pure math</text>
+
+    <rect x="392" y="162" width="290" height="26" rx="3" fill="#fdfaf0" stroke="#c9a227"/>
+    <text x="400" y="179" fill="#7a5d0a">lock(queue) enqueue(callback, mapData)</text>
+
+    <rect x="20" y="198" width="200" height="26" rx="3" fill="#fff" stroke="#1f6f8b"/>
+    <text x="28" y="215" fill="#17323d">Update(): drain → OnMapDataReceived</text>
+
+    <rect x="20" y="234" width="200" height="26" rx="3" fill="#fff" stroke="#1f6f8b"/>
+    <text x="28" y="251" fill="#17323d">RequestMeshData(mapData, lod, cb)</text>
+
+    <rect x="392" y="234" width="290" height="40" rx="3" fill="#fff" stroke="#2f6b33"/>
+    <text x="400" y="250" fill="#17323d">GenerateTerrainMesh → MeshData (POD)</text>
+    <text x="400" y="263" fill="#5b6f77">curve keys copied — AnimationCurve is not thread-safe</text>
+
+    <rect x="20" y="284" width="200" height="32" rx="3" fill="#fff" stroke="#1f6f8b"/>
+    <text x="28" y="298" fill="#17323d">MeshData.CreateMesh() · assign</text>
+    <text x="28" y="310" fill="#5b6f77">collider added only at LOD 0</text>
+  </g>
+
+  <line x1="220" y1="125" x2="390" y2="130" stroke="#4a6a75" stroke-width="1.2" marker-end="url(#ar2)"/>
+  <line x1="390" y1="180" x2="222" y2="208" stroke="#4a6a75" stroke-width="1.2" marker-end="url(#ar2)"/>
+  <line x1="220" y1="247" x2="390" y2="250" stroke="#4a6a75" stroke-width="1.2" marker-end="url(#ar2)"/>
+  <line x1="390" y1="272" x2="222" y2="292" stroke="#4a6a75" stroke-width="1.2" marker-end="url(#ar2)"/>
+
+  <text x="248" y="60" font-size="7.4" fill="#8e2b20">guard: _isDestroyed rejects</text>
+  <text x="248" y="71" font-size="7.4" fill="#8e2b20">late callbacks after culling</text>
+</svg>
+</div>
+<figcaption><b>Figure 2 — Chunk life cycle across the thread boundary.</b> Two round trips per chunk:
+one for the height field, one per LOD mesh. Results cross back through
+<code>lock</code>-guarded queues drained in <code>MapGenerator.Update()</code>, so every Unity call
+happens on the main thread. Work is dispatched to the .NET <code>ThreadPool</code> rather than a
+dedicated thread per chunk — the original tutorial design spawned one OS thread per chunk, which does
+not survive on a phone.</figcaption>
+</figure>
+
+<h3>2.3&nbsp;&nbsp;Coordinate systems and scale</h3>
+<p>
+Three coordinate spaces coexist and confusing them is the most common source of bugs in this area of
+the codebase, so they are stated explicitly.
+</p>
+<table>
+  <tr><th style="width:20%">Space</th><th style="width:26%">Unit</th><th>Used by</th></tr>
+  <tr><td><b>Sample space</b></td><td>1 height-field sample</td><td><code>Noise</code>, <code>TerrainShaper</code>, <code>MeshGenerator</code>. A chunk is 33 samples across (32 segments).</td></tr>
+  <tr><td><b>Chunk space</b></td><td>1 sample = 1 unit</td><td><code>EndlessTerrain</code> visibility, LOD thresholds and cull distance. Viewer position is divided by <code>Scale</code> to enter this space.</td></tr>
+  <tr><td><b>World space</b></td><td>metres</td><td>Everything else. <code>Scale = 0.25</code>, applied as the chunk transform's uniform <code>localScale</code>.</td></tr>
+</table>
+<p>The consequences of <code>Scale = 0.25</code> and <code>mapChunkSize = 33</code>:</p>
+<table class="kv">
+  <tr><td>chunk edge</td><td>32 segments × 0.25 m = <b>8 m</b></td></tr>
+  <tr><td>vertex spacing at LOD 0</td><td>0.25 m</td></tr>
+  <tr><td>terrain height</td><td><code>curve(h) × meshHeightMultiplier × 0.25</code> m — so <code>meshHeightMultiplier = 40</code> gives a 10 m maximum relief</td></tr>
+  <tr><td>slope in world space</td><td><code>Δcurve × meshHeightMultiplier</code> — the 0.25 cancels, which is why the multiplier reads directly as steepness</td></tr>
+  <tr><td>view reach presets</td><td>96 / 160 / 256 chunk units = <b>24 / 40 / 64 m</b></td></tr>
+</table>
+<div class="note">
+<b>Why 33 and not 32 or 65.</b> The mesher decimates with stride <code>lod == 0 ? 1 : lod × 2</code>, and
+<code>(33 − 1) = 32</code> must be divisible by every stride in use. Strides 1, 2, 4 and 8 divide 32;
+stride 6 (LOD 3) does not. Hence the valid LOD set is <b>{0, 1, 2, 4}</b> and LOD 3 is deliberately
+absent — a constraint recorded in a comment at the top of <code>MapGenerator.cs</code> and silently
+depended upon by the three view-distance presets.
+</div>
+
+<h3>2.4&nbsp;&nbsp;Repository map</h3>
+<p>
+Thirty-four C# files, eight shaders and one HLSL include (6,726 lines total), grouped by stage. Line
+counts are exact at the time of analysis.
+</p>
+<table>
+  <tr><th style="width:34%">File</th><th style="width:7%">LOC</th><th style="width:9%">Stage</th><th>Role</th></tr>
+  <tr><td class="mono">Scripts/Noise.cs</td><td>99</td><td>1</td><td>Seam-safe fBm; Local/Global normalisation</td></tr>
+  <tr><td class="mono">Scripts/TerrainShaper.cs</td><td>157</td><td>1</td><td>Canyons style: domain warp, ridge fold, terracing</td></tr>
+  <tr><td class="mono">CreateEnv/BiomeStyles.cs</td><td>54</td><td>1</td><td>Locked height-remap curves and shaper presets</td></tr>
+  <tr><td class="mono">Scripts/MeshGenerator.cs</td><td>163</td><td>2</td><td>Mesh build, central-difference normals, LOD skirt</td></tr>
+  <tr><td class="mono">Scripts/MapData.cs</td><td>28</td><td>2</td><td>Cross-thread height-field container; <code>TerrainType</code></td></tr>
+  <tr><td class="mono">Scripts/MapGenerator.cs</td><td>200</td><td>3</td><td>ThreadPool dispatch, result queues, profile application</td></tr>
+  <tr><td class="mono">Scripts/EndlessTerrain.cs</td><td>372</td><td>3</td><td>Visible set, LOD selection, colliders, culling, decorator hooks</td></tr>
+  <tr><td class="mono">Scripts/MapDisplay.cs</td><td>27</td><td>3</td><td>Editor preview target</td></tr>
+  <tr><td class="mono">Scripts/TextureGenerator.cs</td><td>33</td><td>3</td><td>Editor preview textures</td></tr>
+  <tr><td class="mono">Scripts/EndlessTerrainPlacer.cs</td><td>68</td><td>AR</td><td>Plane raycast → anchor → instantiate; the entire AR coupling</td></tr>
+  <tr><td class="mono">Scripts/ChunkDecorator.cs</td><td>22</td><td>4</td><td>Abstract population contract + distance/hysteresis fields</td></tr>
+  <tr><td class="mono">Scripts/TerrainDetailScatter.cs</td><td>524</td><td>4</td><td>Prefab scatter: clusters, masks, slope/curvature filters, metric scaling</td></tr>
+  <tr><td class="mono">Scripts/ProceduralFeatureScatter.cs</td><td>343</td><td>4</td><td>Mesh scatter with variant cache and merged talus</td></tr>
+  <tr><td class="mono">Scripts/ProceduralMeshLibrary.cs</td><td>807</td><td>4</td><td>Eight runtime mesh builders + <code>RockStyle</code> geology</td></tr>
+  <tr><td class="mono">Scripts/Minimap/MinimapRadar.cs</td><td>298</td><td>4</td><td>Self-building radar with depth banding and blip clustering</td></tr>
+  <tr><td class="mono">Scripts/Minimap/MinimapRegistry.cs</td><td>17</td><td>4</td><td>Host-agnostic marker list</td></tr>
+  <tr><td class="mono">Scripts/Minimap/MinimapMarker.cs</td><td>12</td><td>4</td><td>Self-registering blip component</td></tr>
+  <tr><td class="mono">Scripts/UnderwaterEnvironment.cs</td><td>142</td><td>5</td><td>One palette → fog, ambient, camera, 15 shader globals</td></tr>
+  <tr><td class="mono">Scripts/WaterSurface.cs</td><td>79</td><td>5</td><td>Rebuildable water plane that follows the viewer</td></tr>
+  <tr><td class="mono">Scripts/MarineSnow.cs</td><td>173</td><td>5</td><td>Static quad batch for GPU-side particulate</td></tr>
+  <tr><td class="mono">Shaders/UnderwaterCommon.hlsl</td><td>168</td><td>5</td><td>Shared medium: absorption, fade, caustics, encrustation, surge</td></tr>
+  <tr><td class="mono">Shaders/UnderwaterSand.shader</td><td>157</td><td>5</td><td>Terrain surface: world UVs, detiling, caustics, sparkle</td></tr>
+  <tr><td class="mono">Shaders/UnderwaterRock.shader</td><td>149</td><td>5</td><td>Textureless rock: ramp, strata, AO, encrustation, rim</td></tr>
+  <tr><td class="mono">Shaders/UnderwaterKelp.shader</td><td>194</td><td>5</td><td>Vertex sway, root→tip ramp, translucency, two-sided</td></tr>
+  <tr><td class="mono">Shaders/UnderwaterProp.shader</td><td>161</td><td>5</td><td>Imported models: alpha clip, surge flex, translucency</td></tr>
+  <tr><td class="mono">Shaders/UnderwaterGlow.shader</td><td>130</td><td>5</td><td>Bioluminescence: de-phased pulse, fog punch-through</td></tr>
+  <tr><td class="mono">Shaders/UnderwaterSkybox.shader</td><td>79</td><td>5</td><td>Backdrop gradient, sun glow, god rays</td></tr>
+  <tr><td class="mono">Shaders/StylizedWaterSurface.shader</td><td>153</td><td>5</td><td>Surface from below: waves with analytic normals, fresnel</td></tr>
+  <tr><td class="mono">Shaders/MarineSnow.shader</td><td>129</td><td>5</td><td>Vertex-shader billboards, hash positions, camera-wrapped box</td></tr>
+  <tr><td class="mono">CreateEnv/SimpleEnvironmentSettings.cs</td><td>56</td><td>6</td><td>The eight user-facing choices</td></tr>
+  <tr><td class="mono">CreateEnv/SimpleEnvironmentMapper.cs</td><td>175</td><td>6</td><td>Friendly → technical recipes; the only bridge</td></tr>
+  <tr><td class="mono">CreateEnv/EnvironmentProfile.cs</td><td>105</td><td>6</td><td>~50-field serializable environment definition</td></tr>
+  <tr><td class="mono">CreateEnv/EnvironmentBounds.cs</td><td>179</td><td>6</td><td>Per-field ranges + cross-field invariants I-1…I-6</td></tr>
+  <tr><td class="mono">CreateEnv/EnvironmentLoader.cs</td><td>140</td><td>6</td><td>Ordered application into five systems, once</td></tr>
+  <tr><td class="mono">CreateEnv/EnvironmentRepository.cs</td><td>101</td><td>6</td><td>JSON persistence, clamped both directions</td></tr>
+  <tr><td class="mono">CreateEnv/BuiltInProfiles.cs</td><td>75</td><td>6</td><td>Three shipped biomes as code, not scenes</td></tr>
+  <tr><td class="mono">CreateEnv/LifePackLibrary.cs</td><td>52</td><td>6</td><td>Locked prefab rule sets chosen by name</td></tr>
+  <tr><td class="mono">CreateEnv/EnvironmentSession.cs</td><td>14</td><td>6</td><td>Static scene-to-scene handoff</td></tr>
+  <tr><td class="mono">CreateEnv/CustomEnvEntry.cs</td><td>20</td><td>6</td><td>Button → addressable scene load</td></tr>
+  <tr><td class="mono">CreateEnv/UI/EnvironmentEditorUI.cs</td><td>200</td><td>6</td><td>Form binding, dirty tracking, save dialogs</td></tr>
+  <tr><td class="mono">CreateEnv/UI/StartScreenUI.cs</td><td>44</td><td>6</td><td>Builder-scene entry and return navigation</td></tr>
+  <tr><td class="mono">Scripts/WorldContext/World.cs</td><td>250</td><td>—</td><td>Scene state → JSON + natural language (TTS / tutor hook)</td></tr>
+  <tr><td class="mono">CreateEnv/SurfaceStyles.cs</td><td>377</td><td>6</td><td>Code-baked sea-floor textures (7 styles) and water presets (6 styles)</td></tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════ 3. STAGE 1 ═══════════════════════════ -->
+<div class="section">
+<h2>3&nbsp;&nbsp;Stage 1 — Height-field Synthesis</h2>
+<p>
+Stage 1 answers one question: <i>given a seed and a world coordinate, how high is the seabed there?</i>
+It is a pure function. It touches no Unity object, allocates only the array it returns, and therefore
+runs on worker threads. Two implementations exist behind one signature — a plain fractal generator and
+a styled one — and the profile chooses between them.
+</p>
+
+<h3>3.1&nbsp;&nbsp;<span class="mono">Noise.cs</span> — seam-safe fractal Brownian motion</h3>
+<div class="filecard">
+<h4>Assets/ProceduralTerrain/Scripts/Noise.cs</h4>
+<div class="meta"><span>99 lines</span><span><span class="tag thr">WORKER</span><span class="tag">static</span></span><span>no dependencies</span></div>
+<p style="margin-bottom:0">
+Single entry point: <code>GenerateNoiseMap(w, h, seed, scale, octaves, persistance, lacunarity, offset,
+normalizeMode) → float[,]</code>. Sums <code>octaves</code> layers of Perlin noise, each at
+<code>lacunarity</code>× the frequency and <code>persistance</code>× the amplitude of the last.
+</p>
+</div>
+
+<p>The accumulation is textbook fBm:</p>
+<div class="eq">
+h(x,y) = Σ<sub>i=0…n−1</sub> &nbsp;(2·perlin(s<sub>i</sub>) − 1) · p<sup>i</sup>&nbsp;,&nbsp;&nbsp;
+s<sub>i</sub> = (base + O<sub>i</sub>) / scale · l<sup>i</sup>
+</div>
+<p>
+where <code>O<sub>i</sub></code> is a per-octave offset drawn from <code>System.Random(seed)</code> in
+the range ±100 000. Drawing the offsets from a seeded PRNG is what makes a seed reproduce an entire
+world: the same seed produces the same offsets, hence the same terrain everywhere, forever.
+</p>
+
+<h4>The seam problem and its fix</h4>
+<p>
+This is the single most important line of the file, and it is the sort of detail that is almost never
+written down. Chunks are generated independently, on different threads, at different times. Two
+adjacent chunks share an edge, and the vertices on that edge must land at <i>exactly</i> the same
+height in both — not approximately, but to the last bit of the float — or a hairline crack of
+mismatched lighting appears along every chunk border and shimmers as the LOD changes.
+</p>
+<p>
+The obvious implementation bakes the chunk's world offset into the octave offset once, outside the
+loop. That fails. Floating-point addition is not associative, so
+<code>(x + bigOffset) + smallOctave</code> and <code>(x' + bigOffset') + smallOctave</code> computed
+from different chunk origins do not produce identical results for the same world position: the large
+magnitudes destroy low-order bits differently. The code therefore groups the small terms first and
+adds the large octave offset last, per sample:
+</p>
+<pre><span class="c">// Chunk offset is NOT baked in here; added to the vertex coord below so
+// shared border vertices stay bit-identical (no seams).</span>
+<span class="c">// Small numbers grouped first → identical across chunk borders.</span>
+float baseX = x - halfWidth + offset.x;
+float baseY = y - halfHeight - offset.y;
+
+for (int i = 0; i &lt; octaves; i++) {
+    float sampleX = (baseX + octaveOffsets[i].x) / scale * frequency;
+    float sampleY = (baseY + octaveOffsets[i].y) / scale * frequency;
+    float perlinValue = Mathf.PerlinNoise(sampleX, sampleY) * 2 - 1;
+    noiseHeight += perlinValue * amplitude;
+    amplitude *= persistance;
+    frequency *= lacunarity;
+}</pre>
+<p>
+Because <code>baseX</code> is computed the same way from either side of a border, and the octave offset
+is a compile-time-constant-per-octave value added at the same point in the expression tree, the two
+chunks evaluate bit-identical arguments to <code>PerlinNoise</code>. The seam closes exactly, with no
+stitching, no vertex welding and no runtime cost.
+</p>
+<p class="small">
+Note also the asymmetry <code>+ offset.x</code> but <code>− offset.y</code>: the height-field's
+<code>y</code> axis runs along world <code>−Z</code>. The same sign convention reappears in
+<code>MeshGenerator</code>'s normal computation, and the two must agree or lighting is mirrored.
+</p>
+
+<h4>Normalisation: why one mode is forbidden</h4>
+<p>The raw sum has range ±Σp<sup>i</sup>. Two modes map it into [0,1]:</p>
+<table>
+  <tr><th style="width:16%">Mode</th><th style="width:38%">Formula</th><th>Property</th></tr>
+  <tr><td><b>Global</b></td><td><code>clamp((h + 1) / (maxPossible / 0.9), 0, ∞)</code></td>
+      <td>Depends only on the parameters, never on the sampled data. Two chunks agree on shared edges. The <code>/0.9</code> is a headroom fudge so realistic sums reach a useful fraction of the range.</td></tr>
+  <tr><td><b>Local</b></td><td><code>InverseLerp(minInChunk, maxInChunk, h)</code></td>
+      <td>Better contrast per chunk, but the mapping differs per chunk, so a shared edge gets two different heights. <b>Breaks seams.</b></td></tr>
+</table>
+<p>
+Local mode remains in the file because the original single-chunk editor preview used it. To make it
+impossible to reach in a streamed environment, <code>MapGenerator.ApplyProfile</code> overwrites the
+field unconditionally:
+</p>
+<pre><span class="c">// normalizeMode is forced to Global — Local mode breaks chunk-seam matching.</span>
+normalizeMode = Noise.NormalizeMode.Global;</pre>
+<p>
+This is a recurring pattern worth naming for the paper: where a parameter is a <i>correctness
+constraint</i> rather than a creative choice, the configuration layer does not expose it — it asserts
+it. §9.3 generalises this to six cross-field invariants.
+</p>
+
+<figure>
+  <div class="grid2">
+    <img src="figs/f1b_classic_lit.png" alt="Classic dunes render">
+    <img src="figs/f1d_canyon_lit.png" alt="Canyons render">
+  </div>
+  <figcaption><b>Figure 3 — The two terrain styles, rendered from the shipped parameters.</b>
+  Left: <code>Classic</code> via <code>Noise.cs</code> (Sample biome — scale 45, 5 octaves,
+  persistance 0.5, lacunarity 2.0, height multiplier 18). Right: <code>Canyons</code> via
+  <code>TerrainShaper.cs</code> (Canyon biome — scale 60, 6 octaves, warp 6, ridge weight 0.6,
+  5 terrace steps, height multiplier 40). Both views are 40 × 27 m of seabed at the app's true
+  proportions (0.25 m vertex spacing, height = curve × multiplier × 0.25), shaded with the wrapped
+  diffuse and exp-squared medium of §8, and coloured by the same slope threshold the sand/rock
+  materials use. Produced by the Python port; the noise permutation differs from Unity's, so the
+  layout is not the app's, but every structural property is.</figcaption>
+</figure>
+</div>

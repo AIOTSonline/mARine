@@ -38,6 +38,18 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/FaceARScene.unity
     guid: b74f81a770ca95a46b621b1a90041565
+  - enabled: 1
+    path: Assets/Scenes/MarineDemo.unity
+    guid: cf6fa7ba3bd801e45abc47d69fbc8708
+  - enabled: 1
+    path: Assets/Scenes/FreeExplore.unity
+    guid: 59aced77654ae1842a90698dade0b763
+  - enabled: 1
+    path: Assets/Scenes/FreeExploreConfig.unity
+    guid: f4d0c983e70f2984a83d98ce29640cdc
+  - enabled: 1
+    path: Assets/Scenes/freeExploreEndless.unity
+    guid: b3da273bf3b54f049a25d042b4324da2
   m_configObjects:
     UnityEditor.XR.ARCore.ARCoreSettings: {fileID: 11400000, guid: 6ee72d15cf39dd748a13eac57397b9af,
       type: 2}

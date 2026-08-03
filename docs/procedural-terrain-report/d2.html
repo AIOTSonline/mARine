@@ -1,0 +1,368 @@
+<div class="section">
+<h2>2&nbsp;&nbsp;The Architecture in One Page</h2>
+
+<p class="lead">
+We built the subsystem as a pipeline of six stages. Data flows one way. Each stage has a single
+responsibility and knows nothing about the stages after it — which is what lets us test it in pieces and
+replace it in pieces.
+</p>
+
+<figure>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 470" width="100%" style="max-width:172mm">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#17607d"/>
+    </marker>
+    <marker id="ar2" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#d99a2b"/>
+    </marker>
+  </defs>
+  <style>
+    .bx { fill:#fff; stroke:#17607d; stroke-width:1.5; }
+    .hd { font:bold 10.5px Helvetica; fill:#0c3547; }
+    .tx { font:9px Helvetica; fill:#3d5761; }
+    .sm { font:8px Helvetica; fill:#6a828c; }
+    .ln { stroke:#17607d; stroke-width:1.6; fill:none; marker-end:url(#ar); }
+    .stg { font:bold 8.5px Helvetica; fill:#fff; }
+  </style>
+
+  <!-- authoring band -->
+  <rect x="10" y="10" width="700" height="86" rx="6" fill="#fdf6e9" stroke="#e5c894"/>
+  <text x="24" y="30" style="font:bold 10px Helvetica; fill:#8a5a12">STAGE 6 — AUTHORING (runs once, before anything is generated)</text>
+  <rect x="26" y="40" width="150" height="42" rx="4" class="bx" stroke="#d99a2b"/>
+  <text x="101" y="57" class="hd" text-anchor="middle" style="fill:#8a5a12">10 choices</text>
+  <text x="101" y="71" class="tx" text-anchor="middle">what a teacher sees</text>
+
+  <path d="M180 61 L216 61" class="ln" stroke="#d99a2b" marker-end="url(#ar2)"/>
+  <rect x="220" y="40" width="150" height="42" rx="4" class="bx" stroke="#d99a2b"/>
+  <text x="295" y="57" class="hd" text-anchor="middle" style="fill:#8a5a12">Mapper</text>
+  <text x="295" y="71" class="tx" text-anchor="middle">recipes → ~50 parameters</text>
+
+  <path d="M374 61 L410 61" class="ln" stroke="#d99a2b" marker-end="url(#ar2)"/>
+  <rect x="414" y="40" width="150" height="42" rx="4" class="bx" stroke="#d99a2b"/>
+  <text x="489" y="57" class="hd" text-anchor="middle" style="fill:#8a5a12">Bounds.Clamp</text>
+  <text x="489" y="71" class="tx" text-anchor="middle">ranges + 6 invariants</text>
+
+  <path d="M568 61 L604 61" class="ln" stroke="#d99a2b" marker-end="url(#ar2)"/>
+  <rect x="608" y="40" width="88" height="42" rx="4" class="bx" stroke="#d99a2b"/>
+  <text x="652" y="57" class="hd" text-anchor="middle" style="fill:#8a5a12">Loader</text>
+  <text x="652" y="71" class="tx" text-anchor="middle">ordered apply</text>
+
+  <path d="M360 96 L360 122" class="ln"/>
+  <text x="370" y="113" class="sm">configures every stage below, once</text>
+
+  <!-- runtime stages -->
+  <g>
+    <rect x="40" y="128" width="640" height="54" rx="5" class="bx"/>
+    <rect x="40" y="128" width="88" height="54" rx="5" fill="#17607d"/>
+    <text x="84" y="150" class="stg" text-anchor="middle">STAGE 1</text>
+    <text x="84" y="164" class="stg" text-anchor="middle" style="font-weight:normal">height field</text>
+    <text x="142" y="150" class="hd">Noise + TerrainShaper</text>
+    <text x="142" y="166" class="tx">(seed, chunk coordinate) → a 35 × 35 array of heights. Pure maths, no engine objects.</text>
+  </g>
+
+  <path d="M360 182 L360 202" class="ln"/>
+
+  <g>
+    <rect x="40" y="208" width="640" height="54" rx="5" class="bx"/>
+    <rect x="40" y="208" width="88" height="54" rx="5" fill="#17607d"/>
+    <text x="84" y="230" class="stg" text-anchor="middle">STAGE 2</text>
+    <text x="84" y="244" class="stg" text-anchor="middle" style="font-weight:normal">meshing</text>
+    <text x="142" y="230" class="hd">MeshGenerator</text>
+    <text x="142" y="246" class="tx">heights → vertices, normals, triangles, at one of four detail levels. Still no engine objects.</text>
+  </g>
+
+  <path d="M360 262 L360 282" class="ln"/>
+
+  <g>
+    <rect x="40" y="288" width="640" height="54" rx="5" class="bx"/>
+    <rect x="40" y="288" width="88" height="54" rx="5" fill="#17607d"/>
+    <text x="84" y="310" class="stg" text-anchor="middle">STAGE 3</text>
+    <text x="84" y="324" class="stg" text-anchor="middle" style="font-weight:normal">streaming</text>
+    <text x="142" y="310" class="hd">EndlessTerrain &nbsp;+&nbsp; AR anchor</text>
+    <text x="142" y="326" class="tx">decides which chunks exist, at what detail, and destroys the rest. The only stage that touches Unity.</text>
+  </g>
+
+  <path d="M360 342 L360 362" class="ln"/>
+
+  <g>
+    <rect x="40" y="368" width="640" height="54" rx="5" class="bx"/>
+    <rect x="40" y="368" width="88" height="54" rx="5" fill="#17607d"/>
+    <text x="84" y="390" class="stg" text-anchor="middle">STAGE 4</text>
+    <text x="84" y="404" class="stg" text-anchor="middle" style="font-weight:normal">population</text>
+    <text x="142" y="390" class="hd">Scatterers (prefab and procedural-mesh)</text>
+    <text x="142" y="406" class="tx">seats corals, kelp, boulders, arches and caves on each chunk — deterministically.</text>
+  </g>
+
+  <rect x="40" y="434" width="640" height="30" rx="5" fill="#eaf3f6" stroke="#17607d" stroke-dasharray="4 3"/>
+  <text x="360" y="453" class="tx" text-anchor="middle" style="font-size:9.5px">
+    <tspan style="font-weight:bold; fill:#0c3547">STAGE 5 — the water medium</tspan>
+    &nbsp;wraps all of the above: one palette drives fog, ambient, sky and every shader.
+  </text>
+</svg>
+<figcaption>
+<b>Figure 1 — The six stages.</b> Authoring (stage 6) runs once at load and configures everything below
+it; stages 1–4 then run continuously as the user moves; stage 5 is not a step in the pipeline but a
+shared context every drawing stage reads from. We kept the flow strictly one-way so that stages 1 and 2
+can run on background threads: they touch no engine state at all.
+</figcaption>
+</figure>
+
+<h3>2.1&nbsp;&nbsp;What happens when you tap the floor</h3>
+
+<p>
+The clearest way we can explain the architecture is to follow one user action all the way through.
+</p>
+
+<ol>
+  <li><b>The student points the phone at the floor.</b> AR Foundation detects a horizontal plane.</li>
+  <li><b>They tap it.</b> A raycast finds the plane, an anchor is created at that exact spot, and the
+      environment prefab is instantiated as a child of that anchor. From this moment the ocean is pinned
+      to a physical location in the room; if tracking corrects itself, the whole world corrects with it.</li>
+  <li><b>Our loader reads the chosen environment</b> — a small file of numbers — clamps it, and pushes
+      those numbers into five systems in a fixed order, finishing with the streamer.</li>
+  <li><b>The streamer asks for the chunks around the camera.</b> Each request goes to a background
+      thread, which generates a height field and turns it into mesh data without touching Unity.</li>
+  <li><b>Results come back on the main thread</b> and become visible geometry. The nearest ring of
+      chunks also gets a collider.</li>
+  <li><b>Because a collider now exists, life can be placed.</b> Each scatterer raycasts down onto the
+      chunk to find the seabed, applies its placement rules, and seats corals and rocks.</li>
+  <li><b>The student walks.</b> New chunks appear ahead, distant ones drop to coarser detail, and chunks
+      far behind are destroyed. Memory stays flat no matter how far they walk.</li>
+  <li><b>They walk back.</b> We regenerate the destroyed reef — <i>identically</i>, because we never made
+      it random in the first place. We saved nothing to make this true.</li>
+</ol>
+
+<h3>2.2&nbsp;&nbsp;The two decisions that shaped everything else</h3>
+
+<p>
+<b>We made environments data, not scenes.</b> An environment is about fifty numbers in a small file. It
+is not a Unity scene, not a prefab, and not a set of assets. This is what let us satisfy C1: a new biome
+costs a file, not a build. It also let us make our three shipped biomes ordinary — we define them in code
+as data, on exactly the same footing as anything a teacher makes, so they exercise the same code paths we
+ship and cannot silently diverge from them.
+</p>
+
+<p>
+<b>We kept generation pure, application impure, and the boundary explicit.</b> Stages 1 and 2 are pure
+functions of (seed, coordinate, parameters). They allocate arrays and do arithmetic. They never call an
+engine API. We did not do this for style: it is the reason we can run them on a thread pool, the reason
+identical inputs give us identical output on every device, and the reason we can throw the world away and
+rebuild it rather than store it.
+</p>
+
+<div class="novel">
+  <div class="hd"><span>Novelty of the architecture</span>
+    <span><span class="stars">&#9733;</span><span class="tier c">STANDARD</span></span></div>
+  <p>
+    We claim no novelty for the shape of our pipeline. A staged generate-mesh-stream-populate design with
+    a pure/impure split is well-established practice in games and in the procedural content generation
+    literature, and we adopted it deliberately. Our contributions are in specific stages — the seam
+    guarantee (§3), our determinism-as-persistence-strategy argument (§6), our coupling of the rendering
+    medium to the streaming reach (§7), and above all our authoring layer (§8).
+  </p>
+</div>
+</div>
+
+<div class="section">
+<h2>3&nbsp;&nbsp;Making a Seabed</h2>
+
+<div class="what">
+<b>What we built:</b> a function that turns a seed and a world coordinate into a height, such that
+neighbouring chunks agree perfectly at their shared edges, and such that the same seed always gives us
+the same seabed.
+</div>
+
+<h3>3.1&nbsp;&nbsp;Why noise, and why two styles</h3>
+
+<p>
+We made the seabed a <i>height field</i>: for every (x, z) there is exactly one height. We made that
+trade deliberately and early. A height field is cheap to generate, trivially parallel, compact in memory,
+and we can turn it into a mesh and a collider without any topology work. Its cost is that it cannot
+represent an overhang, an arch, or a cave — by definition, since each column has one surface. We accepted
+that cost and solved caves separately (§6.3), rather than paying for a full volumetric representation
+everywhere in order to have overhangs in a few places.
+</p>
+
+<p>
+We take height from fractal noise: several layers of smooth noise summed, each at higher frequency and
+lower amplitude than the last. This is the standard construction and we claim nothing for it. What
+mattered for us is that we needed two very different seabeds — gentle dunes for the reef and kelp
+lessons, and dramatic canyon walls for a deep-water lesson — and that we wanted both from the same
+machinery, so our streaming, meshing and collision code has only one thing to deal with.
+</p>
+
+<p>
+We therefore layer three operators on top of the same fractal sum to get our <i>Canyons</i> style:
+</p>
+
+<ul>
+  <li><b>Domain warping</b> — before sampling, we push the sample point itself around with a second, much
+      smoother noise field. Straight features become meandering ones. This is what stopped our canyons
+      from looking like scratches on a grid.</li>
+  <li><b>Ridging</b> — we fold the noise about its midline, so what was a smooth mid-value contour
+      becomes a sharp crest. We raise the fold to a power to control how knife-edged the crests are.</li>
+  <li><b>Terracing</b> — we quantise heights into bands with a sharp but continuous transition between
+      them, which gives us flat mesa tops separated by near-vertical cliff faces.</li>
+</ul>
+
+<figure>
+  <img src="figs/f2a_fbm.png" style="width:23%"><img src="figs/f2b_warp.png" style="width:23%"><img src="figs/f2c_ridge.png" style="width:23%"><img src="figs/f2d_terrace.png" style="width:23%">
+  <figcaption>
+  <b>Figure 2 — The three operators, added one at a time.</b> Left to right: the plain fractal sum;
+  with domain warping, which bends features into organic curves; with ridging, which turns smooth
+  contours into crests; with terracing, which flattens the tops and steepens the walls into cliff bands.
+  All four are the same seed and the same noise — only the operators differ. Rendered from a faithful
+  port of the shipping code.
+  </figcaption>
+</figure>
+
+<h3>3.2&nbsp;&nbsp;The seam problem, and why it is a floating-point problem</h3>
+
+<p>
+We generate chunks independently, often on different threads, in no particular order. Two neighbouring
+chunks share an edge, and every vertex along that edge gets computed <i>twice</i> — once by each chunk.
+If those two computations do not produce bit-identical results, the mesh edges do not line up and a
+visible seam runs through our world.
+</p>
+
+<p>
+What caught us out is that the two computations are algebraically identical and still disagree.
+Floating-point addition is not associative: adding a large offset to a coordinate before adding a small
+one loses precision differently than the reverse. A chunk far from the origin has a large coordinate
+offset, and our noise field has large random per-layer offsets; group them in the wrong order and the
+shared vertex comes out a few millionths apart in each chunk.
+</p>
+
+<p>
+We fixed it by fixing the order of operations: we group and sum the small local terms first, and add the
+large offsets last, identically in both chunks. It is a one-line concern that is easy to get wrong, its
+symptom (a shimmering line) looks like a meshing bug rather than an arithmetic one, and — as far as we
+can find — it is essentially never written down.
+</p>
+
+<p>
+We made a second, related decision for the same reason. Normalising each chunk's heights against its own
+local minimum and maximum gives better contrast, but the range differs per chunk, so shared vertices
+normalise differently and our seam comes back. We therefore normalise against a deterministic global
+bound instead, and our authoring layer <i>forces</i> this mode rather than exposing it as a preference.
+That is an early example of a pattern we use throughout §8: where a setting has a correct value, we
+remove it from the user rather than default it.
+</p>
+
+<div class="novel">
+  <div class="hd"><span>Seam-safe coordinate grouping, stated explicitly</span>
+    <span><span class="stars">&#9733;&#9733;</span><span class="tier b">COMBINATION</span></span></div>
+  <p>
+    We did not invent this technique — it is folklore among practitioners. What we offer is documenting
+    it as a correctness property with its cause named. We state it as an invariant — <i>shared border
+    samples must be bit-identical, therefore the order of floating-point operations is part of the
+    specification</i> — rather than as a tip. We think it is worth a short subsection and an ablation
+    figure in a paper, because it is a case where the naive implementation is algebraically correct and
+    visibly wrong.
+  </p>
+</div>
+
+<figure>
+  <img src="figs/f1b_classic_lit.png" style="width:46%">&nbsp;<img src="figs/f1d_canyon_lit.png" style="width:46%">
+  <figcaption>
+  <b>Figure 3 — The two shipping seabed styles.</b> Left: <i>Classic</i>, rolling dunes used for the reef
+  and kelp environments. Right: <i>Canyons</i>, the same generator with warping, ridging and terracing
+  enabled and a taller height scale, used for the deep-water lesson. Both are single-valued height
+  fields — every apparent cliff is still one surface per column.
+  </figcaption>
+</figure>
+
+<h3>3.3&nbsp;&nbsp;A robustness note worth keeping</h3>
+
+<p>
+Our ridge operator raises a value to a fractional power. If that value is ever negative the result is not
+a number, and a single such value propagates through the mesh and destroys the entire chunk — it
+disappears, or renders as an explosion of triangles. The noise function we build on can return values
+fractionally outside its documented range, which is enough to trigger it. We therefore clamp before
+folding.
+</p>
+
+<p>
+It is a small thing, but it is the class of bug we would have paid dearly to find later: rare,
+seed-dependent, presenting as a rendering failure rather than a maths failure, and impossible to
+reproduce without the exact seed and chunk coordinate. We include it because "clamp before you take a
+fractional power of noise" is the kind of hard-won detail we think a systems paper should pass on.
+</p>
+</div>
+
+<div class="section">
+<h2>4&nbsp;&nbsp;Turning Numbers into a Surface</h2>
+
+<div class="what">
+<b>What we built:</b> a converter from a grid of heights into a mesh at one of four detail levels, with
+lighting that matches across chunk borders and no visible cracks where detail levels meet.
+</div>
+
+<h3>4.1&nbsp;&nbsp;Why detail levels are not optional</h3>
+
+<p>
+Our chunk at full detail is a 33 × 33 grid. If we filled the visible radius at full detail we would be
+drawing tens of thousands of triangles of seabed that is mostly a few pixels tall on screen. On a
+mid-range phone that is the difference between a smooth experience and a slideshow. We therefore generate
+distant chunks at coarser resolutions, by simply striding the sample grid.
+</p>
+
+<p>
+That forced our grid size. Striding a 32-segment grid has to divide evenly, so our usable strides are 1,
+2, 4 and 8 — giving detail levels 0, 1, 2 and 4, with 3 conspicuously absent. The gap is not an oversight
+on our part; it is arithmetic, and we documented it in the code precisely because it looks like one.
+</p>
+
+<h3>4.2&nbsp;&nbsp;Lighting that matches across a border</h3>
+
+<p>
+We compute a surface normal from the difference in height between a vertex's neighbours. At the edge of a
+chunk, one of those neighbours belongs to the <i>next</i> chunk — which may not exist yet. Both naive
+options were bad for us: guess the missing neighbour and lighting visibly changes across every border, or
+generate chunks in dependency order and lose the parallelism that makes our streaming work.
+</p>
+
+<p>
+Instead we have each chunk generate one extra ring of height samples all the way around, which we use
+<i>only</i> for computing normals and then discard. Both chunks sharing a border compute the same normal
+from the same data, independently, in any order. It costs us generating a 35 × 35 array to mesh a 33 × 33
+one — about 12% more arithmetic on the cheapest stage of our pipeline — and we consider that a good price
+for removing an entire class of visual artefact while keeping full parallelism.
+</p>
+
+<h3>4.3&nbsp;&nbsp;Hiding the cracks instead of solving them</h3>
+
+<p>
+Where a high-detail chunk meets a low-detail one, the edges genuinely do not match — the coarse chunk has
+fewer vertices along the shared edge, so the fine chunk's extra vertices have nowhere to attach. The
+rigorous fix would have been to stitch the boundary, generating transition geometry for each combination
+of neighbouring detail levels. It is correct and it is fiddly.
+</p>
+
+<p>
+We chose the pragmatic alternative: we drop a hidden vertical curtain from each chunk's outer edge, like
+the rim of a tray. Our cracks still exist, but looking through one shows more seabed rather than empty
+background, so in practice nobody sees them. We scale the curtain's depth with the terrain's height,
+because our taller canyon cliffs open wider gaps than our gentle dunes.
+</p>
+
+<p>
+We want to state that plainly as a philosophy rather than dress it up: we preferred a cheap constant-cost
+trick that makes the artefact <i>unobservable</i> over an exact solution that would cost us
+implementation complexity and per-frame work. On our device budget, being invisible was the requirement;
+being correct was only a means to it.
+</p>
+
+<div class="novel">
+  <div class="hd"><span>Meshing, normals and skirts</span>
+    <span><span class="stars">&#9733;</span><span class="tier c">STANDARD</span></span></div>
+  <p>
+    We claim no novelty here. Border rings for seamless normals and skirts for LOD cracks are both
+    well-known techniques in terrain rendering, and we used them as found. We include them because our
+    <i>reasoning</i> transfers — trading 12% extra arithmetic for parallelism-preserving seamless
+    lighting, and preferring unobservable over exact — and because a reader will otherwise wonder how we
+    handled our seams and cracks.
+  </p>
+</div>
+</div>

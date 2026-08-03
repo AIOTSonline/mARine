@@ -1,0 +1,399 @@
+<!-- ═══════════════════════════ 10. WORLD API ═══════════════════════════ -->
+<div class="section">
+<h2>10&nbsp;&nbsp;The World Context API</h2>
+<div class="filecard">
+<h4>Assets/ProceduralTerrain/Scripts/WorldContext/World.cs</h4>
+<div class="meta"><span>250 lines</span><span><span class="tag">MAIN</span><span class="tag">static</span></span><span>documented in <code>WORLD_CONTEXT_API.md</code></span></div>
+<p style="margin-bottom:0">
+Converts the live scene into a structured snapshot and a natural-language description. Not part of the
+generation pipeline, but directly relevant to the application's text-to-speech accessibility and
+assessment features — this is the seam through which a narrator, a tutor or a quiz generator learns what
+the learner is actually looking at.
+</p>
+</div>
+<p>Four data structures, all <code>[Serializable]</code> so <code>JsonUtility</code> can emit them:</p>
+<table>
+  <tr><th style="width:22%">Structure</th><th>Fields</th></tr>
+  <tr><td class="mono">PlayerState</td><td>depth below the surface, heading in degrees and as a compass point, world position</td></tr>
+  <tr><td class="mono">EnvironmentData</td><td>estimated biome, depth, distance to seabed, water temperature, visibility, light level, water colour hint</td></tr>
+  <tr><td class="mono">CreatureInfo</td><td>name, distance, relative direction, vertical position</td></tr>
+  <tr><td class="mono">PropInfo</td><td>name, category (coral / seaweed / rock / feature), distance, direction</td></tr>
+</table>
+<p>The derivations are deliberately simple heuristics over live scene state rather than authored metadata:</p>
+<ul>
+  <li><b>Depth</b> — <code>waterLevel − camera.y</code>, where <code>waterLevel</code> is read from
+      <code>UnderwaterEnvironment</code>, falling back to <code>WaterSurface</code>, then to a constant.
+      One source of truth, three fallbacks.</li>
+  <li><b>Seabed distance</b> — a single downward <code>Physics.Raycast</code> up to 200 m.</li>
+  <li><b>Biome estimate</b> — banded on depth and seabed proximity: <i>close to the seabed</i> (&lt; 2 m),
+      <i>sunlit shallows</i> (&lt; 3 m), <i>reef zone</i> (&lt; 8 m), <i>open midwater</i> (&lt; 20 m),
+      else <i>deep seabed</i>.</li>
+  <li><b>Relative direction</b> — signed angle between camera forward and the target, bucketed into
+      <i>ahead</i> / <i>ahead-left</i> / <i>left</i> / <i>behind-left</i> / <i>behind</i> and mirrors.
+      Vertical position is <i>above you</i> / <i>same depth</i> / <i>below you</i> at a 1 m threshold.</li>
+  <li><b>Discovery</b> — by tag (<code>Actor</code> for creatures, <code>Obstacle</code> for props),
+      wrapped in try/catch because an undefined tag throws. Results are sorted by distance and truncated
+      to 12 creatures and 10 props, so the description length is bounded.</li>
+</ul>
+<p><code>BuildSummary</code> composes a spoken-language sentence:</p>
+<pre>"You are about 6.4m deep in the reef zone, 1.8m above the seabed.
+ Water is ~23.4°C, dim, visibility ~22m. 3 creature(s) nearby: a Octopus
+ ahead-left (4.2m, same depth), a Shark behind (11.7m, above you), ...
+ 5 nearby feature(s) (corals/seaweed/rocks)."</pre>
+<p>
+<code>Describe()</code> also returns an empty string when the scene is not an ocean scene and no
+creatures are in range, so a caller can use it as a "nothing worth saying" signal rather than narrating
+emptiness. Names are cleaned of Unity's <code>(Clone)</code> suffix and of parenthetical decorations
+before being spoken.
+</p>
+<div class="warn">
+<b>One defect found while reading.</b> <code>EnvironmentData.waterTemperatureC</code> is declared and is
+used by <code>BuildSummary</code> (<i>"Water is ~{e.waterTemperatureC}°C"</i>), and a helper
+<code>EstimateTemp(depth) = clamp(26 − depth·0.4, 4, 30)</code> exists — but
+<code>GetEnvironment()</code> never assigns the field, so every summary reports
+<b>0&nbsp;°C</b>. The fix is one line in the <code>EnvironmentData</code> initialiser
+(<code>waterTemperatureC = R(EstimateTemp(depth))</code>). Worth fixing before any demo that uses spoken
+narration, and worth mentioning here because a paper claiming TTS support should not ship a summary that
+tells learners the tropical reef is at freezing point.
+</div>
+
+<!-- ═══════════════════════════ 11. PER-FILE REFERENCE ═══════════════════════════ -->
+<div class="section">
+<h2>11&nbsp;&nbsp;Per-File Reference</h2>
+<p>
+Entry points, dependencies and the single most important thing to know about each file. Ordered by
+pipeline stage.
+</p>
+
+<h3>11.1&nbsp;&nbsp;Generation</h3>
+<table>
+  <tr><th style="width:20%">File</th><th style="width:24%">Entry point</th><th>Depends on / notable</th></tr>
+  <tr><td class="mono">Noise.cs</td><td><code>GenerateNoiseMap</code></td><td>Nothing. Coordinate grouping is the seam fix; Local mode must never be used when streaming.</td></tr>
+  <tr><td class="mono">TerrainShaper.cs</td><td><code>Generate</code>, <code>Settings</code></td><td>Nothing. <code>Clamp01</code> before the ridge fold prevents NaN chunks.</td></tr>
+  <tr><td class="mono">BiomeStyles.cs</td><td><code>BuildHeightCurve</code>, <code>BuildShaper</code></td><td><code>EnvironmentProfile</code>. Curves are code, not assets, and monotonic by construction.</td></tr>
+  <tr><td class="mono">MeshGenerator.cs</td><td><code>GenerateTerrainMesh</code>; <code>MeshData</code></td><td>Copies <code>AnimationCurve</code> keys for thread safety. Owns the skirt and border-normal logic.</td></tr>
+  <tr><td class="mono">MapData.cs</td><td><code>MapData</code>, <code>TerrainType</code></td><td>Readonly struct. No colour map at runtime — colour is entirely shader-side.</td></tr>
+</table>
+
+<h3>11.2&nbsp;&nbsp;Streaming</h3>
+<table>
+  <tr><th style="width:20%">File</th><th style="width:24%">Entry point</th><th>Depends on / notable</th></tr>
+  <tr><td class="mono">MapGenerator.cs</td><td><code>RequestMapData</code>, <code>RequestMeshData</code>, <code>ApplyProfile</code></td><td><code>Noise</code>, <code>TerrainShaper</code>, <code>MeshGenerator</code>, <code>BiomeStyles</code>. Queues are drained fully each frame with no budget — first place to look for hitches.</td></tr>
+  <tr><td class="mono">EndlessTerrain.cs</td><td><code>Initialize</code>, <code>BuildViewDistance</code>; nested <code>TerrainChunk</code>, <code>LODMesh</code></td><td><code>MapGenerator</code>, <code>ChunkDecorator</code>. Static <code>MaxViewDst</code>/<code>ViewerPosition</code> and static <code>_decorators</code> mean effectively one instance per scene.</td></tr>
+  <tr><td class="mono">EndlessTerrainPlacer.cs</td><td><code>Update</code> (one-shot)</td><td>AR Foundation, Input System. The only file that knows AR exists.</td></tr>
+  <tr><td class="mono">MapDisplay.cs</td><td><code>DrawTexture</code>, <code>DrawMesh</code></td><td>Editor preview only.</td></tr>
+  <tr><td class="mono">TextureGenerator.cs</td><td><code>TextureFromHeightMap</code>, <code>TextureFromColourMap</code></td><td>Editor preview only.</td></tr>
+</table>
+
+<h3>11.3&nbsp;&nbsp;Population</h3>
+<table>
+  <tr><th style="width:20%">File</th><th style="width:24%">Entry point</th><th>Depends on / notable</th></tr>
+  <tr><td class="mono">ChunkDecorator.cs</td><td><code>PopulateChunk</code> (abstract)</td><td>Contract requires determinism. Both fields tune spawn distance and hysteresis.</td></tr>
+  <tr><td class="mono">TerrainDetailScatter.cs</td><td><code>PopulateChunk</code>, <code>ApplyLifePack</code>; <code>ScatterRule</code></td><td><code>LifePackLibrary</code>, <code>MinimapMarker</code>. Requires an <b>active</b> chunk object for its ground raycasts.</td></tr>
+  <tr><td class="mono">ProceduralFeatureScatter.cs</td><td><code>PopulateChunk</code>; <code>FeatureRule</code></td><td><code>ProceduralMeshLibrary</code>. Variant cache invalidated by <code>OnValidate</code>.</td></tr>
+  <tr><td class="mono">ProceduralMeshLibrary.cs</td><td><code>Build(kind, seed)</code>; <code>RockStyle</code>, <code>Draft</code></td><td>Nothing. Deterministic integer-hash noise; vertex alpha carries baked AO.</td></tr>
+  <tr><td class="mono">Minimap/*.cs</td><td><code>MinimapRegistry.Add/Remove</code></td><td>Markers self-register on enable/disable.</td></tr>
+</table>
+
+<h3>11.4&nbsp;&nbsp;Rendering</h3>
+<table>
+  <tr><th style="width:20%">File</th><th style="width:24%">Entry point</th><th>Depends on / notable</th></tr>
+  <tr><td class="mono">UnderwaterEnvironment.cs</td><td><code>Apply</code> (every frame)</td><td>Writes <code>RenderSettings</code>, camera, 15 globals. Explicit sRGB→linear conversion.</td></tr>
+  <tr><td class="mono">WaterSurface.cs</td><td><code>Rebuild</code></td><td>Follows the viewer; world-space wave phase keeps waves still.</td></tr>
+  <tr><td class="mono">MarineSnow.cs</td><td><code>ApplySettings</code></td><td>Static mesh; all motion in the vertex shader. <code>HideFlags.DontSave</code>.</td></tr>
+  <tr><td class="mono">UnderwaterCommon.hlsl</td><td>included by all shaders</td><td>Changing <code>UnderwaterBackground</code> requires matching the skybox shader.</td></tr>
+  <tr><td class="mono">8 × *.shader</td><td>—</td><td>All hand-written URP HLSL, SRP-batcher compatible; vertex-animated shaders duplicate motion into <code>DepthOnly</code>.</td></tr>
+</table>
+
+<h3>11.5&nbsp;&nbsp;Configuration</h3>
+<table>
+  <tr><th style="width:20%">File</th><th style="width:24%">Entry point</th><th>Depends on / notable</th></tr>
+  <tr><td class="mono">SimpleEnvironmentSettings.cs</td><td><code>Clamp</code>, label arrays</td><td>The complete UI surface. Labels live with the data.</td></tr>
+  <tr><td class="mono">SimpleEnvironmentMapper.cs</td><td><code>Apply(profile)</code></td><td>The only bridge. Ends by calling <code>Bounds.Clamp</code>.</td></tr>
+  <tr><td class="mono">EnvironmentProfile.cs</td><td><code>Clone</code></td><td>New fields must default to values reproducing the old look.</td></tr>
+  <tr><td class="mono">EnvironmentBounds.cs</td><td><code>Clamp</code>, <code>Default</code>, <code>Range</code></td><td>Ranges are shared with the UI. Invariants re-derived, never trusted.</td></tr>
+  <tr><td class="mono">EnvironmentLoader.cs</td><td><code>Start</code></td><td>Order matters; streaming last.</td></tr>
+  <tr><td class="mono">EnvironmentRepository.cs</td><td><code>Save</code>, <code>Load</code>, <code>ListUser</code>, <code>Delete</code></td><td>Clamps both directions; tolerant of corrupt files.</td></tr>
+  <tr><td class="mono">BuiltInProfiles.cs</td><td><code>All()</code></td><td>Three biomes as code; each clamped on construction.</td></tr>
+  <tr><td class="mono">LifePackLibrary.cs</td><td><code>Load</code>, <code>GetPack</code>, <code>PackNames</code></td><td>Cached including failure. <code>ShallowClone</code> protects the asset.</td></tr>
+  <tr><td class="mono">EnvironmentSession.cs</td><td><code>Selected</code>, <code>EditRequestId</code></td><td>Static handoff across scene loads.</td></tr>
+  <tr><td class="mono">UI/EnvironmentEditorUI.cs</td><td><code>Open(existing, onDone)</code></td><td>Re-maps and re-clamps on every change.</td></tr>
+  <tr><td class="mono">UI/StartScreenUI.cs</td><td><code>Start</code></td><td>The builder scene is only the form.</td></tr>
+  <tr><td class="mono">CustomEnvEntry.cs</td><td>button handler</td><td>Addressable scene load.</td></tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════ 12. PERFORMANCE ═══════════════════════════ -->
+<div class="section">
+<h2>12&nbsp;&nbsp;Performance Design and the Measurement Gap</h2>
+
+<h3>12.1&nbsp;&nbsp;Where the budget was spent by design</h3>
+<p>
+The subsystem contains a coherent set of decisions all pointing at the same constraint — a mid-range
+phone running an AR camera feed, plane tracking and the rest of the application at the same time. They are
+worth tabulating because collectively they are the engineering argument, even before anything is measured.
+</p>
+<table>
+  <tr><th style="width:26%">Decision</th><th style="width:30%">Alternative avoided</th><th>Saving</th></tr>
+  <tr><td>Height field + discrete 3D features</td><td>Voxels / marching cubes / SDF</td><td>Generation stays a 2D array of pure arithmetic; overhangs cost a handful of shared meshes</td></tr>
+  <tr><td>Generation on the <code>ThreadPool</code></td><td>Main-thread generation, or a thread per chunk</td><td>Frame time decoupled from generation; bounded thread count</td></tr>
+  <tr><td>Colliders only at LOD 0</td><td>Colliders on every visible chunk</td><td>Collider bakes scale with the innermost ring, not with view distance</td></tr>
+  <tr><td>Collider created once, then toggled</td><td>Add/remove per LOD change</td><td>One physics bake per chunk lifetime</td></tr>
+  <tr><td>Skirts</td><td>LOD edge stitching</td><td>~12% vertices at LOD 0; no per-LOD-pair geometry or code</td></tr>
+  <tr><td>Shared mesh variants (≤ 8/rule)</td><td>Unique mesh per instance</td><td>Mesh memory O(rules × variants), independent of distance travelled</td></tr>
+  <tr><td>Merged talus per rule per chunk</td><td>One object per fragment</td><td>One draw call per rubble field instead of dozens</td></tr>
+  <tr><td>Textureless props, baked vertex AO</td><td>Textures + real-time shadows / probes</td><td>Zero texture memory for rock and life; cave lighting at no runtime cost</td></tr>
+  <tr><td>Shadows off on props by default</td><td>Shadow casting per prop</td><td>No extra shadow-pass draw calls for hundreds of small objects</td></tr>
+  <tr><td>Static snow mesh, vertex-shader motion</td><td>CPU particle system</td><td>One draw call, no per-frame CPU or buffer upload</td></tr>
+  <tr><td>Derived camera far plane</td><td>Fixed large far plane</td><td>Nothing rasterised that the medium has already hidden</td></tr>
+  <tr><td>Recomputation from a spatial hash</td><td>Persisting visited chunks</td><td>O(visible) memory; no save file, no serialization cost</td></tr>
+  <tr><td>Hysteresis on prop spawn/despawn</td><td>Single distance threshold</td><td>No rebuild thrash at the boundary</td></tr>
+  <tr><td>Movement threshold before re-evaluation</td><td>Re-evaluate every frame</td><td>Visible-set scan runs only on meaningful movement</td></tr>
+  <tr><td>Cached <code>Shader.PropertyToID</code>, reused <code>MaterialPropertyBlock</code>, pre-sized arrays, squared-distance comparisons</td><td>Naïve equivalents</td><td>Allocation and hashing removed from per-frame and per-prop paths</td></tr>
+</table>
+
+<h3>12.2&nbsp;&nbsp;What is not known</h3>
+<div class="warn">
+<b>There is no measured performance data in this repository.</b> No frame times, no memory traces, no
+chunk-generation timings, no draw-call counts, no device matrix, and no evidence for any specific
+frame-rate target. Every entry in the table above is a <i>reasoned</i> saving, not a demonstrated one.
+Several are also plausibly <i>wrong</i> in the sense of being unnecessary or mis-sized — for example, the
+un-budgeted queue drain in §5.1 may or may not cause visible hitches, and the LOD thresholds were chosen
+by eye.
+</div>
+<p>
+Six experiments would close the gap. All are cheap, and the first two directly substantiate the report's
+central claims.
+</p>
+<table>
+  <tr><th style="width:5%">#</th><th style="width:26%">Experiment</th><th style="width:34%">Method</th><th>Claim it tests</th></tr>
+  <tr><td><b>E1</b></td><td>Memory flatness</td>
+      <td>Scripted swim along a straight path for 10 minutes; sample resident memory, live
+          <code>GameObject</code> count and mesh count every 5 s; plot against distance travelled.</td>
+      <td><b>C4.</b> A flat line is the proof that recomputation replaces persistence. A rising line
+          falsifies it and localises a leak.</td></tr>
+  <tr><td><b>E2</b></td><td>Determinism</td>
+      <td>Populate a chunk; hash every spawned transform (position, rotation, scale) into a digest; leave
+          until culled; return; re-hash; assert equality. Repeat across all decorator rules and both
+          scatterers.</td>
+      <td><b>C4.</b> Also a genuine regression test worth committing — determinism is easy to break
+          accidentally by introducing <code>UnityEngine.Random</code> or frame-dependent state.</td></tr>
+  <tr><td><b>E3</b></td><td>Frame time by preset</td>
+      <td>Same scripted path at Near / Medium / Far on 2–3 real devices spanning the target range; report
+          median and 95th-percentile frame time, plus a histogram.</td>
+      <td>That the three presets are meaningfully different and all viable — the premise of the
+          Exploration Area control.</td></tr>
+  <tr><td><b>E4</b></td><td>Generation cost breakdown</td>
+      <td><code>Stopwatch</code> around height-field generation and each LOD mesh build, off-thread;
+          report distributions for Classic and Canyons.</td>
+      <td>That Canyons' three extra operators are affordable, and whether meshing or noise dominates.</td></tr>
+  <tr><td><b>E5</b></td><td>Population cost and draw calls</td>
+      <td>Profiler capture of a chunk-population spike: instantiation count, raycast count, resulting draw
+          calls with and without talus merging and material unification.</td>
+      <td>The merging and unification savings in §7.3 and §7.2.</td></tr>
+  <tr><td><b>E6</b></td><td>Authoring usability</td>
+      <td>N teachers or students, no training: time to first satisfying environment, SUS, and — the
+          decisive measure — <b>whether any produced configuration violates I-1…I-6 or otherwise breaks</b>
+          (the invariants predict zero).</td>
+      <td><b>C1.</b> This is the experiment that makes it an education paper rather than a graphics
+          paper.</td></tr>
+</table>
+<p>
+E1, E2 and E4 can be automated inside the project and re-run in CI. E3 and E5 need devices. E6 needs
+ethics approval and participants, and should be scoped early because it has the longest lead time.
+</p>
+</div>
+
+<!-- ═══════════════════════════ 13. GAPS ═══════════════════════════ -->
+<div class="section">
+<h2>13&nbsp;&nbsp;Known Gaps and Verification Status</h2>
+
+<h3>13.1&nbsp;&nbsp;<span class="mono">SurfaceStyles.cs</span> — now wired</h3>
+<div class="note">
+<p style="margin-bottom:.5em">
+An earlier revision of this report listed <code>SurfaceStyles.cs</code> as dead code: untracked in git,
+referenced by nothing, and setting a material property (<code>_PatternStyle</code>) that the water shader
+did not declare. It has since been wired in and is described in §9.7. Six files changed:
+</p>
+<table style="margin-bottom:.5em">
+  <tr><th style="width:34%">File</th><th>Change</th></tr>
+  <tr><td class="mono">StylizedWaterSurface.shader</td><td>Added the missing <code>_PatternStyle</code> property and implemented pattern modes 1 (voronoi ripple web) and 2 (directional streaks), reusing the shared include's hash and value noise</td></tr>
+  <tr><td class="mono">EnvironmentProfile.cs</td><td>Group 3c: <code>terrainTextureStyle</code>, <code>waterStyle</code>, both defaulting to 0</td></tr>
+  <tr><td class="mono">SimpleEnvironmentSettings.cs</td><td>User choices <code>seafloorSurface</code> and <code>waterMovement</code>; label arrays aliased to the style tables</td></tr>
+  <tr><td class="mono">SimpleEnvironmentMapper.cs</td><td><code>ApplySurfaces</code> — pass-through of the two indices</td></tr>
+  <tr><td class="mono">EnvironmentBounds.cs</td><td>Clamps both indices against the style tables' lengths</td></tr>
+  <tr><td class="mono">EnvironmentLoader.cs</td><td>Step 2c: applies each style to a material <b>clone</b>, before <code>Rebuild()</code> and <code>Initialize()</code>; clones destroyed in <code>OnDestroy</code></td></tr>
+  <tr><td class="mono">UI/EnvironmentEditorUI.cs</td><td>Two dropdowns, under the existing Seafloor and Water headers</td></tr>
+</table>
+<p style="margin-bottom:0">
+The user-facing surface is therefore <b>10 controls</b> rather than eight, and the invariant story of §9.3
+is unchanged: both new fields are validated indices, and index 0 of each is a strict no-op, so every
+environment saved before the change renders exactly as it did.
+</p>
+</div>
+
+<div class="warn">
+<b>What has and has not been verified.</b>
+<table style="margin:.4em 0 .5em">
+  <tr><th style="width:26%">Check</th><th style="width:14%">Result</th><th>Method</th></tr>
+  <tr><td>C# compiles</td><td><b>verified</b></td><td>All 34 subsystem files plus the full <code>Assembly-CSharp</code> source set compiled with Unity's bundled Roslyn: zero errors and zero warnings inside <code>ProceduralTerrain</code>. The harness was itself validated by injecting a deliberate type error and confirming it was caught.</td></tr>
+  <tr><td>Wiring logic</td><td><b>verified</b></td><td>A standalone harness exercised the real compiled code: user choice reaches the profile, out-of-range indices clamp, <code>Clamp</code> is idempotent, <code>Clone</code> deep-copies, and all 42 style combinations survive a full <code>Apply</code>+<code>Clamp</code> pass.</td></tr>
+  <tr><td>Baked textures</td><td><b>seen</b></td><td>The baking code was ported to Python and all six generated styles were rendered and inspected, including a 2 × 2 repeat to confirm the tileable-by-construction claim (no seam).</td></tr>
+  <tr><td>Water pattern modes</td><td><b>seen</b></td><td>Modes 1 and 2 were ported and rendered at two time samples before being written as HLSL, which is how the mode-1 scale problem noted in §9.7 was found and fixed.</td></tr>
+  <tr><td>HLSL compiles</td><td><b>NOT verified</b></td><td>Shader compilation requires the Unity Editor, which was not run. Braces and parentheses balance, every function and global used is declared in <code>UnderwaterCommon.hlsl</code> or URP Core, and the call site type-checks by inspection — but this needs one Editor import to confirm. It is the single outstanding risk in this change, and it affects the water surface for <i>all</i> styles including 0.</td></tr>
+  <tr><td>In-engine appearance</td><td><b>NOT verified</b></td><td>No style has been seen rendering inside the app on real streamed terrain.</td></tr>
+</table>
+<p style="margin-bottom:0">
+Two judgements on the styles themselves, from the offline renders: <b>Coral Rubble</b> and
+<b>Pebble Field</b> read as spheres rather than broken clasts, because the same Worley F1 term drives both
+colour and height and produces dome-shaped normals; and <b>Volcanic Ash</b> is very dark
+(albedo 0.07–0.24) and will go nearly black once the medium's absorption is applied. All three are usable
+but none is as convincing as Golden Ripples or Silty Mud.
+</p>
+</div>
+
+<h3>13.2&nbsp;&nbsp;Other findings</h3>
+<table>
+  <tr><th style="width:22%">Item</th><th style="width:12%">Severity</th><th>Detail and suggested action</th></tr>
+  <tr><td>New HLSL not yet compiled</td><td>Needs one Editor run</td>
+      <td>The two new water pattern modes and the <code>_PatternStyle</code> property have not been
+          through a shader compile. Open the project once and check the Console before relying on the
+          water surface. (§13.1)</td></tr>
+  <tr><td>Water temperature always 0 °C</td><td>Low, user-visible</td>
+      <td><code>World.GetEnvironment()</code> never assigns <code>waterTemperatureC</code> although
+          <code>EstimateTemp</code> exists and <code>BuildSummary</code> reads it. One-line fix; do it
+          before any spoken-narration demo. (§10)</td></tr>
+  <tr><td>Un-budgeted queue drain</td><td>Unknown</td>
+      <td><code>MapGenerator.Update</code> drains both result queues to empty each frame. Add a per-frame
+          cap only if E3/E4 shows hitches — do not pre-optimise. (§5.1)</td></tr>
+  <tr><td>Callbacks invoked under the queue lock</td><td>Low, latent</td>
+      <td>Works because the two queues are always acquired in a consistent order, but a future refactor
+          could deadlock. Consider draining into a local buffer before invoking. (§5.1)</td></tr>
+  <tr><td>Static state in <code>EndlessTerrain</code></td><td>Design</td>
+      <td><code>MaxViewDst</code>, <code>ViewerPosition</code>, <code>_mapGenerator</code>,
+          <code>_decorators</code> and <code>_chunksVisibleLastUpdate</code> are static, so two
+          simultaneous terrain instances would interfere. Fine today (one ocean at a time); worth noting
+          if multiplayer or split-screen is ever attempted. (§11.2)</td></tr>
+  <tr><td><code>hillshade()</code> duplication</td><td>Report-only</td>
+      <td>Not a project issue — an unused helper in the figure-generation script for this report.</td></tr>
+  <tr><td>No automated tests</td><td>Medium</td>
+      <td>The seam property, the determinism property and the invariants are all mechanically checkable.
+          E2 (§12.2) is the natural first test; a second could assert that
+          <code>Clamp</code> is idempotent and that random profiles always satisfy I-1…I-6.</td></tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════ 14. PAPER MAPPING ═══════════════════════════ -->
+<div class="section">
+<h2>14&nbsp;&nbsp;Mapping This Report onto the Paper</h2>
+<p>
+The target format is the VGTC conference style already in use for the Cephalopod AR demo submission. There
+are two coherent options, and they are not mutually exclusive — the first can be done now, the second
+after §12's measurements.
+</p>
+
+<h3>14.1&nbsp;&nbsp;Option A — a subsection in the existing demo paper</h3>
+<p>
+The current draft's §2.1 covers terrain in a single clause. A half-column to one-column subsection titled
+<b>Procedural Environment Generation</b>, placed between the AR Foundation and behavioural-simulation
+paragraphs, would carry four sentences of substance:
+</p>
+<ol>
+  <li>An infinite seabed is streamed in 8 m chunks around the AR anchor, generated on worker threads from
+      a seeded fractal height field with a coordinate scheme that makes shared chunk borders
+      bit-identical.</li>
+  <li>Because a height field cannot represent caves, overhangs, arches and grottos are separate shared
+      meshes seated on it, generated once per variant and instanced, with cave lighting baked into vertex
+      colour.</li>
+  <li>All surfaces render through one water medium with per-channel absorption, whose opacity distance is
+      constrained below the streaming reach so the world has no visible edge.</li>
+  <li>Educators author new biomes through ten choices; a constraint layer derives ~50 parameters and
+      enforces six invariants, so no reachable configuration produces a broken environment.</li>
+</ol>
+<p>
+One figure. The strongest candidate is a two-panel version of Figure 3 (Classic vs Canyons) or, if space
+allows, Figure 14's rock ablation, which is the most visually self-explanatory result here.
+</p>
+
+<h3>14.2&nbsp;&nbsp;Option B — a standalone full paper</h3>
+<p>Suggested framing, which puts the two genuinely novel contributions in the title rather than the noise:</p>
+<div class="note" style="text-align:center; font-size:10.5pt">
+<b>Constrained Procedural Authoring for Mobile AR Science Education:<br>
+An Infinite Underwater World Non-Experts Cannot Break</b>
+</div>
+<table>
+  <tr><th style="width:8%">§</th><th style="width:34%">Section</th><th>Source in this report</th></tr>
+  <tr><td>1</td><td>Introduction — many environments needed, teachers cannot author them, PCG tools expose dozens of knobs</td><td>§1.1, §9 opening</td></tr>
+  <tr><td>2</td><td>Related work — fractal terrain, chunked LOD streaming, PCG for education, AR in science education</td><td>Existing citations (<i>akcayir2017</i>, <i>permana2024</i>, <i>merchant2014</i>, <i>sicat2018dxr</i>) plus terrain-synthesis and spatial-hashing references</td></tr>
+  <tr><td>3</td><td>System overview</td><td>§2, Figure 1</td></tr>
+  <tr><td>4</td><td>Seam-free streaming height field</td><td>§3.1, §4.2, §4.3, §5, Figures 2, 8, 9, 10</td></tr>
+  <tr><td>5</td><td>Beyond the height field: discrete 3D features</td><td>§7.4, Figures 14, 15</td></tr>
+  <tr><td>6</td><td>Deterministic ecological population</td><td>§7.1–7.3, Figure 13</td></tr>
+  <tr><td>7</td><td>A single water medium</td><td>§8, Figures 16, 17</td></tr>
+  <tr><td>8</td><td>Constrained authoring</td><td>§9, Figure 18</td></tr>
+  <tr><td>9</td><td><b>Evaluation</b></td><td><b>Does not exist yet</b> — §12.2 specifies E1–E6</td></tr>
+  <tr><td>10</td><td>Discussion and limitations</td><td>§13, plus the honest scope of the absorption model (§8.2)</td></tr>
+</table>
+
+<h3>14.3&nbsp;&nbsp;What to claim, and what not to</h3>
+<table>
+  <tr><th style="width:32%">Claim as a contribution</th><th>Do <b>not</b> claim as novel</th></tr>
+  <tr><td>The constrained two-layer authoring model with enforced cross-field invariants (C1)</td><td>Fractal Brownian motion, Perlin noise, ridged noise, domain warping — all established; cite them</td></tr>
+  <tr><td>Hybrid height field + shared discrete 3D features under a mobile budget, with baked cave lighting (C2)</td><td>Chunked terrain streaming with distance-based LOD — standard practice</td></tr>
+  <tr><td>Coupling the rendering medium to the streaming reach as an invariant (C3)</td><td>Vogel / sunflower packing and the golden angle — known from phyllotaxis literature</td></tr>
+  <tr><td>Recomputation-instead-of-persistence as an educational reproducibility property (C4)</td><td>Spatial hashing for deterministic placement — cite Teschner et al.</td></tr>
+  <tr><td>The <code>RockStyle</code> combination of fracture projection, asymmetric bedding lips and two-scale detail, and its ablation</td><td>Per-channel attenuation as physics — the model here is coarse and inferred from an artist-chosen colour, not measured; describe it as perceptually motivated</td></tr>
+</table>
+<div class="warn">
+<b>Three things to remove or rewrite before submission.</b>
+<ol style="margin:.35em 0 0">
+  <li>The existing draft's sentence <i>"Preliminary deployment in educational settings demonstrates
+      significant improvements in student engagement and knowledge retention compared to traditional
+      marine biology instruction methods"</i> is not supported by anything in this repository. Either
+      run a study or delete the claim; in a full paper it is a rejection risk on its own.</li>
+  <li>Any claim that the sea-floor texture styles or water presets have been seen working in the app —
+      they are wired and their generated output has been inspected offline, but nothing has yet been
+      confirmed rendering in-engine (§13.1).</li>
+  <li>Any performance figure that has not been measured. Report the design decisions of §12.1 as design
+      decisions, and give measurements only from E1–E6.</li>
+</ol>
+</div>
+
+<h3>14.4&nbsp;&nbsp;Figure inventory</h3>
+<p>Every figure in this report is reusable in the paper. The PNG and SVG files, and the Python that generated them, are in <code>docs/procedural-terrain-report/</code> — SVG figures can be included directly in LaTeX via <code>\includegraphics</code> after conversion to PDF, or re-exported at any resolution from <code>figs.py</code>.</p>
+<table>
+  <tr><th style="width:8%">Fig</th><th style="width:30%">Subject</th><th style="width:14%">Type</th><th>Best used for</th></tr>
+  <tr><td>1</td><td>Six-stage architecture</td><td>SVG diagram</td><td>System overview section</td></tr>
+  <tr><td>2</td><td>Chunk life cycle across threads</td><td>SVG diagram</td><td>Streaming / threading</td></tr>
+  <tr><td>3</td><td>Classic vs Canyons, 3D</td><td>Rendered PNG</td><td>Teaser or terrain section; the demo-paper candidate</td></tr>
+  <tr><td>4</td><td>Operator ablation, 4 panels</td><td>Rendered PNG</td><td>Terrain synthesis; shows what each operator contributes</td></tr>
+  <tr><td>5, 6</td><td>Terrace gain and ridge fold</td><td>SVG plot</td><td>Method detail; compact and precise</td></tr>
+  <tr><td>7</td><td>Height remap curves</td><td>SVG plot</td><td>Method detail</td></tr>
+  <tr><td>8</td><td>Border ring and shared normals</td><td>SVG diagram</td><td>The seam argument — publish it, nobody documents this</td></tr>
+  <tr><td>9</td><td>LOD skirts, cross-section</td><td>SVG diagram</td><td>Meshing</td></tr>
+  <tr><td>10</td><td>Chunk grid, LOD rings, presets</td><td>SVG diagram</td><td>Streaming</td></tr>
+  <tr><td>11</td><td>Spawn/despawn hysteresis</td><td>SVG diagram</td><td>Population</td></tr>
+  <tr><td>12</td><td>AR placement flow</td><td>SVG flowchart</td><td>AR integration</td></tr>
+  <tr><td>13</td><td>Vogel mound packing</td><td>SVG diagram</td><td>Population method</td></tr>
+  <tr><td>14</td><td>RockStyle ablation, 4 panels</td><td>Rendered PNG</td><td><b>Strongest single figure</b> — carries §7.4 alone</td></tr>
+  <tr><td>15</td><td>Grotto construction</td><td>SVG diagram</td><td>3D features</td></tr>
+  <tr><td>16</td><td>Per-channel transmittance</td><td>SVG plot</td><td>Medium model</td></tr>
+  <tr><td>17</td><td>Distance composition and invariants</td><td>SVG diagram</td><td>The C3 argument</td></tr>
+  <tr><td>18</td><td>Configuration pipeline</td><td>SVG diagram</td><td>The C1 argument</td></tr>
+</table>
+<p class="small">
+Still missing, and worth capturing on a device: an in-situ photograph of the ocean anchored to a real
+classroom floor, and a screenshot of the ten-control authoring form beside the environments it produced.
+Both are straightforward to obtain and both would strengthen an education-venue submission considerably.
+</p>
+
+<div style="margin-top:2.2em; padding-top:.7em; border-top:2px solid #1f6f8b; font-size:8.4pt; color:#556c74;">
+<b style="color:#0d3b4c">Provenance.</b> Every algorithm, constant and code excerpt in this report was read
+directly from <code>Assets/ProceduralTerrain/</code>. Figures 3, 4 and 14 were rendered by a Python port
+of <code>Noise.cs</code>, <code>TerrainShaper.cs</code>, <code>BiomeStyles.cs</code> and
+<code>ProceduralMeshLibrary.RockStyle</code>; Figures 5, 6, 7, 13 and 16 were plotted from the shipped
+formulae (see <code>docs/procedural-terrain-report/figs.py</code>); the remaining figures are hand-authored diagrams of documented behaviour. The only substitution
+is the Perlin permutation table, so generated layouts differ from the application's while every structural
+property is preserved. No performance claim in this document is based on measurement.
+</div>
+</div>

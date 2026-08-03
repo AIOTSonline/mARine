@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Procedural Terrain Subsystem — Technical Report</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 16mm 16mm; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 9.6pt; line-height: 1.52; color: #1c2529; margin: 0;
+  }
+  h1, h2, h3, h4 { color: #0d3b4c; line-height: 1.22; margin: 0 0 .35em; font-weight: 700; }
+  h1 { font-size: 20pt; }
+  h2 { font-size: 15pt; padding-bottom: 4px; border-bottom: 2.5px solid #1f6f8b; margin-top: 0; }
+  h3 { font-size: 11.6pt; margin-top: 1.5em; color: #14536a; }
+  h4 { font-size: 10pt; margin-top: 1.15em; color: #23616f; }
+  p { margin: 0 0 .62em; text-align: justify; hyphens: auto; }
+  ul, ol { margin: 0 0 .7em; padding-left: 1.15em; }
+  li { margin-bottom: .22em; }
+  code, .mono { font-family: Menlo, Consolas, "Courier New", monospace; font-size: 8.5pt; }
+  code { background: #eef3f5; padding: .08em .3em; border-radius: 2.5px; color: #0d3b4c; }
+  pre {
+    background: #f6f9fa; border: 1px solid #d8e3e7; border-left: 3.5px solid #1f6f8b;
+    padding: 7px 10px; margin: .5em 0 .8em; border-radius: 3px;
+    font-family: Menlo, Consolas, monospace; font-size: 8.1pt; line-height: 1.42;
+    white-space: pre-wrap; overflow-wrap: break-word; color: #17323d;
+  }
+  pre .c { color: #6a8a94; font-style: italic; }
+  pre .k { color: #1f6f8b; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin: .45em 0 .9em; font-size: 8.6pt; }
+  th { background: #1f6f8b; color: #fff; text-align: left; padding: 4.5px 7px; font-weight: 600; }
+  td { padding: 4px 7px; border-bottom: 1px solid #e0e8ec; vertical-align: top; }
+  tr:nth-child(even) td { background: #f7fafb; }
+  td.mono, th.mono { font-family: Menlo, Consolas, monospace; font-size: 7.9pt; }
+  .section { page-break-before: always; }
+  figure { margin: .8em 0 1em; page-break-inside: avoid; text-align: center; }
+  figure img { max-width: 100%; border: 1px solid #cfdce1; border-radius: 3px; }
+  figcaption {
+    font-size: 8.2pt; color: #445a63; margin-top: 5px; text-align: left;
+    padding-left: 2px; line-height: 1.42;
+  }
+  figcaption b { color: #0d3b4c; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .grid4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; }
+  .grid2 img, .grid4 img { width: 100%; }
+  .note {
+    background: #f0f7f9; border-left: 3.5px solid #3d9bb5; padding: 7px 11px;
+    margin: .6em 0 .9em; font-size: 9pt; border-radius: 0 3px 3px 0;
+  }
+  .warn {
+    background: #fdf5ec; border-left: 3.5px solid #d98c3f; padding: 7px 11px;
+    margin: .6em 0 .9em; font-size: 9pt; border-radius: 0 3px 3px 0;
+  }
+  .warn b, .note b { color: #0d3b4c; }
+  .filecard {
+    border: 1px solid #dbe5e9; border-radius: 4px; padding: 8px 11px;
+    margin: .55em 0 .9em; background: #fcfdfd; page-break-inside: avoid;
+  }
+  .filecard h4 { margin-top: 0; font-family: Menlo, Consolas, monospace; font-size: 9.4pt; color: #0d3b4c; }
+  .meta { font-size: 8pt; color: #63797f; margin-bottom: .45em; }
+  .meta span { display: inline-block; margin-right: 12px; }
+  .tag {
+    display: inline-block; background: #e3edf1; color: #14536a; border-radius: 9px;
+    padding: 1px 7px; font-size: 7.4pt; font-weight: 600; margin-right: 4px;
+  }
+  .tag.thr { background: #e8f1e4; color: #2f6b33; }
+  .tag.gpu { background: #f3e9f4; color: #6a3f75; }
+  .tag.new { background: #fdeee0; color: #96551b; }
+  svg { max-width: 100%; height: auto; }
+  .cover { text-align: center; padding-top: 44mm; page-break-after: always; }
+  .cover .kicker { font-size: 10pt; letter-spacing: .16em; color: #3d9bb5; text-transform: uppercase; font-weight: 700; }
+  .cover h1 { font-size: 27pt; margin: 14px 0 6px; line-height: 1.14; }
+  .cover .sub { font-size: 13pt; color: #37535d; margin-bottom: 30px; font-weight: 400; }
+  .cover .rule { width: 90px; height: 3px; background: #1f6f8b; margin: 22px auto; }
+  .cover .box {
+    display: inline-block; text-align: left; border: 1px solid #cfdce1; border-radius: 5px;
+    padding: 13px 22px; font-size: 9.2pt; color: #2b444d; background: #f9fbfc; margin-top: 8px;
+  }
+  .cover .box b { color: #0d3b4c; }
+  .toc { font-size: 9.4pt; }
+  .toc a { color: #17323d; text-decoration: none; }
+  .toc .l1 { display: flex; justify-content: space-between; border-bottom: 1px dotted #c3d2d8; padding: 3.5px 0; font-weight: 600; }
+  .toc .l2 { display: flex; justify-content: space-between; padding: 2px 0 2px 15px; color: #46606a; font-weight: 400; font-size: 9pt; }
+  .toc .num { color: #1f6f8b; font-weight: 700; margin-right: 7px; }
+  .kv { font-size: 8.8pt; }
+  .kv td:first-child { font-family: Menlo, Consolas, monospace; font-size: 7.9pt; width: 34%; color: #14536a; }
+  .eq {
+    background: #f6f9fa; border: 1px dashed #b9ccd3; padding: 6px 12px; margin: .5em 0 .8em;
+    font-family: Menlo, Consolas, monospace; font-size: 8.6pt; text-align: center; border-radius: 3px;
+  }
+  .small { font-size: 8.4pt; color: #556c74; }
+  .nobreak { page-break-inside: avoid; }
+  .diagram { text-align: center; margin: .7em 0 .3em; }
+  .tight { max-width: 66%; margin: 0 auto; }
+  .plabel { font-size: 7.6pt; color: #445a63; text-align: center; margin-top: 2px; }
+  .tight72 { max-width: 74%; margin: 0 auto; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ COVER ═══════════════════════════════ -->
+<div class="cover">
+  <div class="kicker">Technical Report &amp; Paper Source Material</div>
+  <h1>The Procedural Terrain Subsystem<br>of Cephalopod AR</h1>
+  <div class="sub">An infinite, deterministic, thread-generated underwater world<br>for mobile augmented-reality marine biology education</div>
+  <div class="rule"></div>
+  <div class="box">
+    <b>Project</b> &nbsp;Marine Biology AR Application (Cephalopod AR)<br>
+    <b>Subsystem</b> &nbsp;<span class="mono">Assets/ProceduralTerrain/</span><br>
+    <b>Scope</b> &nbsp;34 C# source files, 8 URP shaders, 1 shared HLSL include<br>
+    <b>Total</b> &nbsp;6,726 lines analysed line-by-line<br>
+    <b>Engine</b> &nbsp;Unity + Universal Render Pipeline + AR Foundation<br>
+    <b>Date</b> &nbsp;30 July 2026
+  </div>
+  <p class="small" style="max-width: 125mm; margin: 30px auto 0; text-align: center;">
+    Every algorithm described here was read from source. Every raster figure was produced by a
+    faithful Python port of the corresponding C# or HLSL, not by hand-drawing — the terrain
+    renders, the rock ablation, the packing diagram and the absorption curves are outputs of the
+    shipped algorithms.
+  </p>
+</div>
+
+<!-- ═══════════════════════════════ TOC ═══════════════════════════════ -->
+<h2>Contents</h2>
+<div class="toc">
+  <div class="l1"><span><span class="num">1</span>Executive Summary</span><span>3</span></div>
+  <div class="l2"><span>1.1 What the subsystem is · 1.2 Contribution claims · 1.3 Reading guide</span><span></span></div>
+
+  <div class="l1"><span><span class="num">2</span>Architecture</span><span>5</span></div>
+  <div class="l2"><span>2.1 The six-stage pipeline · 2.2 Threading model · 2.3 Coordinate systems and scale · 2.4 Repository map</span><span></span></div>
+
+  <div class="l1"><span><span class="num">3</span>Stage 1 — Height-field Synthesis</span><span>9</span></div>
+  <div class="l2"><span>3.1 <span class="mono">Noise.cs</span> — seam-safe fBm · 3.2 <span class="mono">TerrainShaper.cs</span> — the Canyons style · 3.3 <span class="mono">BiomeStyles.cs</span> — locked height remap</span><span></span></div>
+
+  <div class="l1"><span><span class="num">4</span>Stage 2 — Meshing</span><span>16</span></div>
+  <div class="l2"><span>4.1 <span class="mono">MeshGenerator.cs</span> · 4.2 Bordered normals · 4.3 LOD skirts · 4.4 <span class="mono">MapData.cs</span></span><span></span></div>
+
+  <div class="l1"><span><span class="num">5</span>Stage 3 — Streaming, Threading, LOD</span><span>20</span></div>
+  <div class="l2"><span>5.1 <span class="mono">MapGenerator.cs</span> · 5.2 <span class="mono">EndlessTerrain.cs</span> · 5.3 The chunk life cycle · 5.4 Editor-preview path</span><span></span></div>
+
+  <div class="l1"><span><span class="num">6</span>AR Integration</span><span>26</span></div>
+  <div class="l2"><span>6.1 <span class="mono">EndlessTerrainPlacer.cs</span> · 6.2 The three AR adaptation patches · 6.3 Prefab topology</span><span></span></div>
+
+  <div class="l1"><span><span class="num">7</span>Stage 4 — Deterministic Population</span><span>29</span></div>
+  <div class="l2"><span>7.1 <span class="mono">ChunkDecorator.cs</span> · 7.2 <span class="mono">TerrainDetailScatter.cs</span> · 7.3 <span class="mono">ProceduralFeatureScatter.cs</span> · 7.4 <span class="mono">ProceduralMeshLibrary.cs</span> · 7.5 Minimap</span><span></span></div>
+
+  <div class="l1"><span><span class="num">8</span>Stage 5 — Rendering and the Water Medium</span><span>42</span></div>
+  <div class="l2"><span>8.1 <span class="mono">UnderwaterEnvironment.cs</span> · 8.2 <span class="mono">UnderwaterCommon.hlsl</span> · 8.3 The eight shaders · 8.4 <span class="mono">MarineSnow</span> · 8.5 <span class="mono">WaterSurface</span></span><span></span></div>
+
+  <div class="l1"><span><span class="num">9</span>Stage 6 — Constrained Authoring (Create-Env)</span><span>48</span></div>
+  <div class="l2"><span>9.1 Two-layer model · 9.2 Mapper recipes · 9.3 Bounds and invariants · 9.4 Loader ordering · 9.5 Persistence · 9.6 UI · 9.7 Surface styles</span><span></span></div>
+
+  <div class="l1"><span><span class="num">10</span>The World Context API</span><span>56</span></div>
+
+  <div class="l1"><span><span class="num">11</span>Per-File Reference</span><span>57</span></div>
+
+  <div class="l1"><span><span class="num">12</span>Performance Design and the Measurement Gap</span><span>59</span></div>
+
+  <div class="l1"><span><span class="num">13</span>Known Gaps and Verification Status</span><span>61</span></div>
+
+  <div class="l1"><span><span class="num">14</span>Mapping This Report onto the Paper</span><span>63</span></div>
+</div>
+
+<!-- ═══════════════════════════ 1. SUMMARY ═══════════════════════════ -->
+<div class="section">
+<h2>1&nbsp;&nbsp;Executive Summary</h2>
+
+<h3>1.1&nbsp;&nbsp;What the subsystem is</h3>
+<p>
+The procedural terrain subsystem generates an <b>unbounded underwater environment at runtime</b>, on a
+mobile phone, anchored to a plane the user's camera detected in their physical room. No part of the
+world is authored by hand and no part of it is stored: terrain, rock formations, caves, reef
+communities, water, particulate and lighting are all computed from a small set of numbers
+(a <i>profile</i>) and a seed.
+</p>
+<p>
+It is used by the application's Ocean Explorer and Custom Create modes. In Ocean Explorer the learner
+swims through a generated biome; in Custom Create an educator or student produces a new biome by
+answering ten questions, and the system derives roughly fifty technical parameters from those
+answers under a set of enforced invariants.
+</p>
+<p>The system is organised as six stages, each of which is a separate, independently testable concern:</p>
+<table>
+  <tr><th style="width:5%">#</th><th style="width:20%">Stage</th><th style="width:32%">Responsibility</th><th>Primary files</th></tr>
+  <tr><td>1</td><td>Height-field synthesis</td><td>Turn (seed, coordinates) into a 2D height array</td><td class="mono">Noise.cs, TerrainShaper.cs, BiomeStyles.cs</td></tr>
+  <tr><td>2</td><td>Meshing</td><td>Height array → renderable mesh with seamless normals and crack curtains</td><td class="mono">MeshGenerator.cs, MapData.cs</td></tr>
+  <tr><td>3</td><td>Streaming</td><td>Decide which chunks exist, at what LOD, on which thread</td><td class="mono">MapGenerator.cs, EndlessTerrain.cs</td></tr>
+  <tr><td>4</td><td>Population</td><td>Seat reef communities and 3D rock formations on the mesh</td><td class="mono">ChunkDecorator.cs, TerrainDetailScatter.cs, ProceduralFeatureScatter.cs, ProceduralMeshLibrary.cs</td></tr>
+  <tr><td>5</td><td>Rendering</td><td>One shared water medium; every surface fades into the same water</td><td class="mono">UnderwaterEnvironment.cs, UnderwaterCommon.hlsl + 8 shaders</td></tr>
+  <tr><td>6</td><td>Authoring</td><td>Eight friendly choices → fifty technical fields, provably in-range</td><td class="mono">CreateEnv/ (12 files)</td></tr>
+</table>
+
+<h3>1.2&nbsp;&nbsp;Contribution claims this subsystem can support</h3>
+<p>
+Not everything here is novel, and the report is explicit about which is which. Fractal noise, chunked
+LOD streaming and sunflower packing are established technique. Four claims, however, are defensible
+as contributions:
+</p>
+<table>
+  <tr><th style="width:4%"></th><th style="width:30%">Claim</th><th>Basis</th></tr>
+  <tr><td><b>C1</b></td><td>Constrained procedural authoring for non-experts</td>
+      <td>A two-layer configuration model in which the user-facing surface is 10 controls, the technical
+          surface is ~50 fields, and six cross-field invariants are re-derived on every load and save.
+          No reachable configuration — including a hand-edited JSON file — can produce terrain that
+          breaches the water surface, a visible streaming boundary, an unbounded per-chunk prop count,
+          or chunks built from stale parameters. §9</td></tr>
+  <tr><td><b>C2</b></td><td>Hybrid height-field + discrete 3D features under a mobile budget</td>
+      <td>A 2D height field cannot represent a cave. Rather than moving to voxels or marching cubes,
+          true overhangs, arches and grottos are separate shared meshes seated on the height field,
+          generated once per variant and instanced everywhere, with cave lighting baked into vertex
+          alpha so no additional lights are needed. §7.4</td></tr>
+  <tr><td><b>C3</b></td><td>Rendering–streaming coupling as an invariant</td>
+      <td>The water medium's opacity distance is constrained below the streaming reach
+          (<code>fadeEnd ≤ reach − 2</code>), so the world does not end, it dissolves. The invisibility
+          of the world boundary is guaranteed by construction rather than achieved by tuning. §8.2, §9.3</td></tr>
+  <tr><td><b>C4</b></td><td>Recomputation instead of persistence</td>
+      <td>Content placement is a pure function of a spatial hash of the chunk coordinate, so an infinite
+          world needs O(visible) memory and zero save state; a reef rebuilds identically when the
+          learner returns to it. §7.1</td></tr>
+</table>
+
+<div class="warn">
+<b>Honest limitation, stated up front.</b> There are no measured performance numbers anywhere in the
+repository — no frame times, no memory traces, no chunk-build timings, no device matrix — and no user
+study of the authoring layer. Every claim above is an <i>architectural</i> claim, verifiable by reading
+the code, and each is written here in a form that a measurement can confirm or refute. §12 specifies
+exactly which experiments would close this gap. Nothing in this report should be presented as an
+empirical result.
+</div>
+
+<h3>1.3&nbsp;&nbsp;Reading guide</h3>
+<ul>
+  <li><b>For the paper's system section</b> — §2 (architecture), then the opening subsection of each stage.</li>
+  <li><b>For the strongest novel material</b> — §7.4 (3D features) and §9 (constrained authoring).</li>
+  <li><b>For implementation work</b> — §11 is a per-file reference with entry points and dependencies.</li>
+  <li><b>Before submitting anything</b> — §12 (what must be measured) and §13 (code that is not actually wired).</li>
+</ul>
+<p class="small">
+Throughout, <span class="tag">MAIN</span> marks main-thread-only code, <span class="tag thr">WORKER</span>
+marks code that runs on worker threads and therefore must not touch Unity objects, and
+<span class="tag gpu">GPU</span> marks shader code.
+</p>
+</div>

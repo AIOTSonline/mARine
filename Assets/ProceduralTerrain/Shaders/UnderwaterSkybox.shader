@@ -22,17 +22,13 @@ Shader "Custom/UnderwaterSkybox"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "UnderwaterCommon.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float _GodRayIntensity;
                 float _GodRaySpeed;
             CBUFFER_END
 
-            // Globals driven by UnderwaterEnvironment.cs
-            half4 _UnderwaterFogColor;
-            half4 _UnderwaterColorSurface;
-            half4 _UnderwaterColorDeep;
-            half4 _UnderwaterSunGlow;
 
             struct Attributes
             {
@@ -45,21 +41,6 @@ Shader "Custom/UnderwaterSkybox"
                 float3 viewDirWS  : TEXCOORD0;
             };
 
-            // Shared with Custom/UnderwaterSand and Custom/StylizedWaterSurface:
-            // identical maths so fogged geometry matches the backdrop exactly.
-            half3 UnderwaterBackground(float3 viewDir)
-            {
-                half3 col = lerp(_UnderwaterFogColor.rgb, _UnderwaterColorSurface.rgb,
-                                 smoothstep(0.0, 0.7, viewDir.y));
-                col = lerp(col, _UnderwaterColorDeep.rgb,
-                           smoothstep(0.0, 0.6, -viewDir.y));
-
-                float3 L = _MainLightPosition.xyz;
-                float sunAmount = saturate(dot(viewDir, L));
-                col += _UnderwaterSunGlow.rgb *
-                       (pow(sunAmount, 12.0) * 0.5 + pow(sunAmount, 90.0) * 0.8);
-                return col;
-            }
 
             Varyings vert(Attributes IN)
             {

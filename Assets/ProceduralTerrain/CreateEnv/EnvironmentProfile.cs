@@ -51,6 +51,37 @@ namespace CreateEnv
         public int   waterResolution = 96;
         public float cameraFarMargin = 3f;
 
+        // ── Group 3b: Medium, surge, particulate ─────────────────────────────
+        // Every default here reproduces the pre-existing look exactly, so a
+        // profile saved before these fields existed deserializes to 0 and
+        // renders identically. New/edited profiles get real values from
+        // SimpleEnvironmentMapper.
+        public float absorbTint = 0f;
+        public float surgeAmplitude = 0f;
+        public float surgeSpeed = 0.55f;
+        public float surgeDirX = 1f;
+        public float surgeDirZ = 0.35f;
+
+        public int   snowCount = 0;
+        public float snowOpacity = 0.5f;
+        public float snowSizeMin = 0.014f;
+        public float snowSizeMax = 0.050f;
+        public float snowDrift = 0.05f;
+        public float snowSink = 0.03f;
+
+        public float encrustAmount = 0f;
+        public float encrustScale = 1.6f;
+        public Color encrustColorA = new Color(0.62f, 0.28f, 0.42f, 1f);
+        public Color encrustColorB = new Color(0.78f, 0.46f, 0.26f, 1f);
+
+        // ── Group 3c: Surface styles (SurfaceStyles.cs) ──────────────────────
+        // Indices into TerrainTextureStyles.Names / WaterStyles.Names. Index 0 of
+        // both is "Classic": a strict no-op that leaves the scene's own materials
+        // untouched, so a profile saved before these fields existed deserializes
+        // to 0 and renders exactly as it always did.
+        public int terrainTextureStyle = 0;
+        public int waterStyle = 0;
+
         // ── Group 4: Life / scatter (TerrainDetailScatter) ───────────────────
         public int     lifePackIndex = 1;     // index into LifePackLibrary (0 = None)
         public float   lifeDensity = 1f;       // global multiplier on rule densities

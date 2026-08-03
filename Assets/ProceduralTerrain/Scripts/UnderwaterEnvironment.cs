@@ -38,6 +38,23 @@ public class UnderwaterEnvironment : MonoBehaviour
     [Header("Ambient Light")]
     [Range(0f, 2f)] public float ambientIntensity = 1f;
 
+    [Header("Medium (per-channel absorption)")]
+    [Tooltip("How much harder the channels the water is dark in are absorbed. 0 reproduces " +
+             "the original single-channel fog exactly; ~2 gives red dying about 3x faster " +
+             "than blue, which is what makes distance read as water rather than haze.")]
+    [Range(0f, 4f)] public float absorbTint = 2f;
+
+    [Header("Surge (shared swell for soft life)")]
+    [Range(0f, 1f)] public float surgeAmplitude = 0.05f;
+    public float surgeSpeed = 0.55f;
+    public Vector2 surgeDirection = new Vector2(1f, 0.35f);
+
+    [Header("Encrusting Life (rock surfaces)")]
+    [Range(0f, 1f)] public float encrustAmount = 0.35f;
+    public float encrustScale = 1.6f;
+    public Color encrustColorA = new Color(0.62f, 0.28f, 0.42f, 1f);
+    public Color encrustColorB = new Color(0.78f, 0.46f, 0.26f, 1f);
+
     static readonly int FogColorId     = Shader.PropertyToID("_UnderwaterFogColor");
     static readonly int SurfaceColorId = Shader.PropertyToID("_UnderwaterColorSurface");
     static readonly int DeepColorId    = Shader.PropertyToID("_UnderwaterColorDeep");
@@ -46,6 +63,14 @@ public class UnderwaterEnvironment : MonoBehaviour
     static readonly int FadeStartId    = Shader.PropertyToID("_UnderwaterFadeStart");
     static readonly int FadeEndId      = Shader.PropertyToID("_UnderwaterFadeEnd");
     static readonly int WaterLevelId   = Shader.PropertyToID("_UnderwaterLevel");
+    static readonly int AbsorbTintId   = Shader.PropertyToID("_UnderwaterAbsorbTint");
+    static readonly int SurgeAmpId     = Shader.PropertyToID("_UnderwaterSurgeAmp");
+    static readonly int SurgeSpeedId   = Shader.PropertyToID("_UnderwaterSurgeSpeed");
+    static readonly int SurgeDirId     = Shader.PropertyToID("_UnderwaterSurgeDir");
+    static readonly int EncrustAId     = Shader.PropertyToID("_UnderwaterEncrustA");
+    static readonly int EncrustBId     = Shader.PropertyToID("_UnderwaterEncrustB");
+    static readonly int EncrustAmtId   = Shader.PropertyToID("_UnderwaterEncrustAmount");
+    static readonly int EncrustScaleId = Shader.PropertyToID("_UnderwaterEncrustScale");
 
     void OnEnable()  => Apply();
     void OnValidate() => Apply();
@@ -97,5 +122,21 @@ public class UnderwaterEnvironment : MonoBehaviour
         Shader.SetGlobalFloat(FadeStartId,    fadeStart);
         Shader.SetGlobalFloat(FadeEndId,      fadeEnd);
         Shader.SetGlobalFloat(WaterLevelId,   waterLevel);
+
+        Shader.SetGlobalFloat(AbsorbTintId, Mathf.Max(0f, absorbTint));
+
+        Vector2 dir = surgeDirection.sqrMagnitude > 1e-5f
+            ? surgeDirection.normalized
+            : new Vector2(1f, 0f);
+        Shader.SetGlobalFloat(SurgeAmpId,   Mathf.Max(0f, surgeAmplitude));
+        Shader.SetGlobalFloat(SurgeSpeedId, surgeSpeed);
+        Shader.SetGlobalVector(SurgeDirId,  new Vector4(dir.x, dir.y, 0f, 0f));
+
+        Color crustA = linear ? encrustColorA.linear : encrustColorA;
+        Color crustB = linear ? encrustColorB.linear : encrustColorB;
+        Shader.SetGlobalColor(EncrustAId,     crustA);
+        Shader.SetGlobalColor(EncrustBId,     crustB);
+        Shader.SetGlobalFloat(EncrustAmtId,   Mathf.Clamp01(encrustAmount));
+        Shader.SetGlobalFloat(EncrustScaleId, Mathf.Max(0.01f, encrustScale));
     }
 }

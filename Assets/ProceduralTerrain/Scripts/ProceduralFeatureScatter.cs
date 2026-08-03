@@ -47,9 +47,30 @@ public class ProceduralFeatureScatter : ChunkDecorator
         [Tooltip("Add a MeshCollider (only worth it for big swim-through formations).")]
         public bool addCollider = false;
 
+        [Header("Talus (broken rubble around the base)")]
+        [Tooltip("Rubble pieces shed around each formation. Real boulders sit in a skirt of " +
+                 "their own broken-off fragments; without it the rock meets sand at a hard " +
+                 "line, which is the 'pasted on' read. 0 disables it.")]
+        public Vector2Int talusCount = Vector2Int.zero;
+        [Tooltip("Outer edge of the rubble skirt, as a multiple of the formation's footprint.")]
+        public float talusSpread = 1.7f;
+        [Tooltip("Largest fragment as a fraction of the formation's height.")]
+        [Range(0.01f, 0.5f)] public float talusSizeFraction = 0.14f;
+        [Tooltip("Higher = more small chips and fewer big slabs.")]
+        [Range(1f, 6f)] public float talusSizeExponent = 2.5f;
+
         [Header("Minimap")]
         public bool showOnMinimap = false;
         public Color minimapColor = new Color(0.7f, 0.75f, 0.8f, 1f);
+    }
+
+    public static bool IsRockKind(ProceduralMeshLibrary.FeatureKind kind)
+    {
+        return kind == ProceduralMeshLibrary.FeatureKind.Boulder
+            || kind == ProceduralMeshLibrary.FeatureKind.Spire
+            || kind == ProceduralMeshLibrary.FeatureKind.Arch
+            || kind == ProceduralMeshLibrary.FeatureKind.Overhang
+            || kind == ProceduralMeshLibrary.FeatureKind.Grotto;
     }
 
     [Header("Seed")]
@@ -60,6 +81,10 @@ public class ProceduralFeatureScatter : ChunkDecorator
     public bool castShadows = false;
     [Tooltip("Safety cap on instances per chunk (across all rules).")]
     public int maxPropsPerChunk = 80;
+    [Tooltip("When set, every rock-kind rule (boulder/spire/arch/overhang/grotto) is forced " +
+             "onto this material, so an arch cannot end up a different colour from the " +
+             "boulders around it. Leave empty to use each rule's own material.")]
+    public Material sharedRockMaterial;
 
     [Header("Feature rules")]
     public FeatureRule[] rules;
@@ -103,11 +128,13 @@ public class ProceduralFeatureScatter : ChunkDecorator
         int spawned = 0;
         float rayTop = worldCentre.y + 50f;
 
+        List<CombineInstance>[] talus = null;
+
         for (int r = 0; r < rules.Length && spawned < maxPropsPerChunk; r++)
         {
             FeatureRule rule = rules[r];
             if (rule == null || !rule.enabled || rule.densityPerChunk <= 0f) continue;
-            if (rule.material == null) continue;
+            if (MaterialFor(rule) == null) continue;
 
             int n = PoissonCount(rule.densityPerChunk, rng);
             for (int k = 0; k < n && spawned < maxPropsPerChunk; k++)
@@ -122,22 +149,116 @@ public class ProceduralFeatureScatter : ChunkDecorator
                 if (slope < rule.minSlope || slope > rule.maxSlope) continue;
                 if (p.y < rule.heightRange.x || p.y > rule.heightRange.y) continue;
 
-                if (root == null)
-                {
-                    root = new GameObject($"Features ({chunkX},{chunkZ})");
-                    root.transform.SetParent(parent, false);
-                }
+                EnsureRoot(ref root, parent, chunkX, chunkZ);
 
-                SpawnFeature(rule, r, rng, p, nrm, root.transform);
+                float footprint = SpawnFeature(rule, r, rng, p, nrm, root.transform);
                 spawned++;
+
+                if (rule.talusCount.y > 0 && footprint > 0.001f)
+                {
+                    talus ??= new List<CombineInstance>[rules.Length];
+                    talus[r] ??= new List<CombineInstance>();
+                    BuildTalus(rule, r, rng, p, footprint, surface, rayTop, talus[r]);
+                }
+            }
+        }
+
+        if (talus != null)
+        {
+            for (int r = 0; r < talus.Length; r++)
+            {
+                if (talus[r] == null || talus[r].Count == 0) continue;
+                EnsureRoot(ref root, parent, chunkX, chunkZ);
+                CommitTalus(rules[r], talus[r], root.transform);
             }
         }
 
         return root;
     }
 
-    void SpawnFeature(FeatureRule rule, int ruleIndex, System.Random rng,
-                      Vector3 groundPoint, Vector3 groundNormal, Transform root)
+    // Rubble is merged into one mesh per rule per chunk: a skirt of fragments costs
+    // one extra draw call, not one per pebble.
+    void BuildTalus(FeatureRule rule, int ruleIndex, System.Random rng, Vector3 basePoint,
+                    float footprint, Collider surface, float rayTop, List<CombineInstance> sink)
+    {
+        int n = RandRange(rng, rule.talusCount.x, rule.talusCount.y);
+        float maxSize = Mathf.Max(0.01f, rule.sizeMeters.y * rule.talusSizeFraction);
+        float inner = footprint * 0.65f;
+        float outer = Mathf.Max(inner + 0.05f, footprint * rule.talusSpread);
+
+        for (int i = 0; i < n; i++)
+        {
+            float ang = (float)rng.NextDouble() * Mathf.PI * 2f;
+            float rad = Mathf.Lerp(inner, outer, Mathf.Sqrt((float)rng.NextDouble()));
+            float x = basePoint.x + Mathf.Cos(ang) * rad;
+            float z = basePoint.z + Mathf.Sin(ang) * rad;
+
+            if (!SampleGround(surface, x, z, rayTop, out Vector3 hp, out Vector3 hn)) continue;
+
+            Mesh piece = GetMesh(ruleIndex, rng.Next(1 << 20));
+            Bounds b = piece.bounds;
+            if (b.size.y <= 0.0001f) continue;
+
+            float u = Mathf.Pow((float)rng.NextDouble(), rule.talusSizeExponent);
+            float target = Mathf.Lerp(maxSize * 0.18f, maxSize, u);
+            float scale = target / b.size.y;
+
+            Quaternion rot = Quaternion.Slerp(Quaternion.identity,
+                                 Quaternion.FromToRotation(Vector3.up, hn), 0.6f)
+                           * Quaternion.Euler((float)rng.NextDouble() * 360f,
+                                              (float)rng.NextDouble() * 360f,
+                                              (float)rng.NextDouble() * 360f);
+
+            Vector3 pos = hp + Vector3.up * (-b.min.y * scale - target * 0.35f);
+
+            sink.Add(new CombineInstance
+            {
+                mesh = piece,
+                transform = Matrix4x4.TRS(pos, rot, Vector3.one * scale),
+            });
+        }
+    }
+
+    void CommitTalus(FeatureRule rule, List<CombineInstance> pieces, Transform root)
+    {
+        var combined = new Mesh { name = "Talus" };
+        combined.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        combined.CombineMeshes(pieces.ToArray(), true, true);
+        combined.RecalculateBounds();
+
+        var go = new GameObject("Talus");
+        go.transform.SetParent(root, false);
+        go.AddComponent<MeshFilter>().sharedMesh = combined;
+
+        var mr = go.AddComponent<MeshRenderer>();
+        mr.sharedMaterial = MaterialFor(rule);
+        if (!castShadows)
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+    }
+
+    Material MaterialFor(FeatureRule rule)
+    {
+        if (sharedRockMaterial != null && IsRockKind(rule.kind)) return sharedRockMaterial;
+        return rule.material;
+    }
+
+    static int RandRange(System.Random rng, int lo, int hi)
+    {
+        if (hi < lo) hi = lo;
+        return rng.Next(lo, hi + 1);
+    }
+
+    static void EnsureRoot(ref GameObject root, Transform parent, int chunkX, int chunkZ)
+    {
+        if (root != null) return;
+        root = new GameObject($"Features ({chunkX},{chunkZ})");
+        root.transform.SetParent(parent, false);
+    }
+
+    // Returns the placed formation's ground footprint radius, so talus can be
+    // shed in a skirt that actually matches how big the rock turned out.
+    float SpawnFeature(FeatureRule rule, int ruleIndex, System.Random rng,
+                       Vector3 groundPoint, Vector3 groundNormal, Transform root)
     {
         Mesh mesh = GetMesh(ruleIndex, rng.Next(1 << 20));
 
@@ -147,7 +268,7 @@ public class ProceduralFeatureScatter : ChunkDecorator
         var filter = go.AddComponent<MeshFilter>();
         filter.sharedMesh = mesh;
         var renderer = go.AddComponent<MeshRenderer>();
-        renderer.sharedMaterial = rule.material;
+        renderer.sharedMaterial = MaterialFor(rule);
         if (!castShadows)
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
@@ -174,6 +295,8 @@ public class ProceduralFeatureScatter : ChunkDecorator
             var col = go.AddComponent<MeshCollider>();
             col.sharedMesh = mesh; // non-convex: you can swim through arches/grottos
         }
+
+        return Mathf.Max(b.size.x, b.size.z) * scale * 0.5f;
     }
 
     // Low-frequency world noise: 0 = skip here, 1 = field of this feature.

@@ -125,6 +125,8 @@ namespace CreateEnv.UI
             Dropdown("Seafloor profile", SimpleEnvironmentSettings.SeafloorProfiles,
                      s.seafloorProfile, v => { s.seafloorProfile = v; Edited(); });
             Slider("Terrain complexity", s.terrainComplexity, v => { s.terrainComplexity = v; Edited(); });
+            Dropdown("Seafloor surface", SimpleEnvironmentSettings.SeafloorSurfaces,
+                     s.seafloorSurface, v => { s.seafloorSurface = v; Edited(); });
 
             Header("Habitat");
             Dropdown("Marine habitat", SimpleEnvironmentSettings.MarineHabitats,
@@ -135,6 +137,8 @@ namespace CreateEnv.UI
             Slider("Water clarity", s.waterClarity, v => { s.waterClarity = v; Edited(); });
             Dropdown("Water colour", SimpleEnvironmentSettings.WaterColours,
                      s.waterColour, v => { s.waterColour = v; Edited(); });
+            Dropdown("Water movement", SimpleEnvironmentSettings.WaterMovements,
+                     s.waterMovement, v => { s.waterMovement = v; Edited(); });
 
             Header("Exploration");
             Dropdown("Exploration area", SimpleEnvironmentSettings.ExplorationAreas,

@@ -57,10 +57,44 @@ public class EndlessTerrain : MonoBehaviour
         _chunkSize    = MapGenerator.mapChunkSize - 1;
         _chunksVisibleInViewDst = Mathf.RoundToInt(MaxViewDst / _chunkSize);
 
+        ClampDecoratorDistancesToLod0();
+
         float cullDst    = MaxViewDst * CullDistanceMultiplier;
         _sqrCullDistance = cullDst * cullDst;
 
         UpdateVisibleChunks();
+    }
+
+    // Props are seated by raycasting the LOD0 collider, but the chunk renders whatever
+    // LOD its distance selects, and lower LODs drop every Nth vertex — so their surface
+    // sits metres below LOD0 across ridges. Any prop that outlives LOD0 therefore hangs
+    // in open water. The two distances are also in different units (LOD thresholds are
+    // chunk units, placementDistance is world metres, Scale between them), which is how
+    // they drifted apart. Trim the decorators so props always die inside the LOD0 radius.
+    void ClampDecoratorDistancesToLod0()
+    {
+        if (_decorators == null || detailLevels == null || detailLevels.Length == 0) return;
+
+        float lod0World = detailLevels[0].visibleDstThreshold * Scale;
+        float safe = lod0World * 0.9f;
+
+        for (int i = 0; i < _decorators.Length; i++)
+        {
+            ChunkDecorator d = _decorators[i];
+            if (d == null) continue;
+
+            float despawn = d.placementDistance + Mathf.Max(0.5f, d.placementHysteresis);
+            if (despawn <= safe) continue;
+
+            float hyst = Mathf.Min(Mathf.Max(0.5f, d.placementHysteresis), safe * 0.25f);
+            d.placementHysteresis = hyst;
+            d.placementDistance   = Mathf.Max(1f, safe - hyst);
+
+            Debug.Log($"[EndlessTerrain] '{d.GetType().Name}' props would have outlived LOD0 " +
+                      $"(despawn {despawn:0.#} m vs LOD0 {lod0World:0.#} m) and floated over the " +
+                      $"coarser mesh. Trimmed to spawn {d.placementDistance:0.#} m / " +
+                      $"despawn {d.placementDistance + hyst:0.#} m.", d);
+        }
     }
 
     // View-distance presets (index 0 Near, 1 Medium, 2 Far). The last threshold is
@@ -281,6 +315,12 @@ public class EndlessTerrain : MonoBehaviour
 
             float worldDst = viewerDstScaled * Scale;
 
+            // Props may only exist while the chunk is drawing the same LOD0 mesh they
+            // were seated against; anything else leaves them floating over a coarser
+            // surface. The distance clamp in Initialize should get there first — this
+            // is the hard guarantee.
+            bool atLod0 = _previousLODIndex == 0 && _meshCollider != null && _meshCollider.enabled;
+
             for (int i = 0; i < _decorators.Length; i++)
             {
                 ChunkDecorator decorator = _decorators[i];
@@ -291,7 +331,7 @@ public class EndlessTerrain : MonoBehaviour
 
                 if (!_detailsBuilt[i])
                 {
-                    if (worldDst <= spawnDst && _meshCollider != null && _meshCollider.enabled)
+                    if (atLod0 && worldDst <= spawnDst)
                     {
                         _detailsBuilt[i] = true; // latch even if the chunk is bare
                         Vector3 worldCentre = new Vector3(_position.x * Scale,
@@ -303,7 +343,7 @@ public class EndlessTerrain : MonoBehaviour
                             worldCentre, worldHalf, _meshCollider, _parent);
                     }
                 }
-                else if (worldDst > despawnDst)
+                else if (!atLod0 || worldDst > despawnDst)
                 {
                     if (_detailRoots[i] != null) { Object.Destroy(_detailRoots[i]); _detailRoots[i] = null; }
                     _detailsBuilt[i] = false;

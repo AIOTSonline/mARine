@@ -34,6 +34,21 @@ public class TerrainDetailScatter : ChunkDecorator
         [Range(0f, 90f)] public float maxSlope = 40f;
         public Vector2 heightRange = new Vector2(-1000f, 1000f);
 
+        [Header("Size hierarchy")]
+        [Tooltip("1 = every size in the range equally likely (the old behaviour). Higher values " +
+                 "bias toward the small end, so a patch reads as many small props, a few mid, " +
+                 "and the occasional large one — how real benthic communities are distributed.")]
+        [Range(1f, 6f)] public float sizeExponent = 1f;
+
+        [Header("Micro-habitat")]
+        [Tooltip("0 = place anywhere the slope allows (the old behaviour). Positive values pull " +
+                 "props onto convex ground — outcrop tops, ridges, boulder edges. Negative values " +
+                 "pull them into hollows and crevice mouths. Costs 4 extra ground raycasts per " +
+                 "candidate, so leave at 0 for rules that don't need it.")]
+        [Range(-1f, 1f)] public float edgeAffinity = 0f;
+        [Tooltip("How far out the curvature probes sample, metres.")]
+        public float edgeProbeRadius = 0.35f;
+
         [Header("Per-item")]
         [Tooltip("Real-world height in metres (min..max). Each prop is scaled to fit this, " +
                  "regardless of its model's native import size — keeps everything realistic.")]
@@ -100,6 +115,8 @@ public class TerrainDetailScatter : ChunkDecorator
 
     const float GoldenAngle = 2.39996323f;
     static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+    static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
+    static readonly int MainTexId = Shader.PropertyToID("_MainTex");
     MaterialPropertyBlock _mpb;
     int[] _paletteBuf;
     bool _validated;
@@ -228,6 +245,8 @@ public class TerrainDetailScatter : ChunkDecorator
         float slope = Vector3.Angle(nrm, Vector3.up);
         if (slope < rule.minSlope || slope > rule.maxSlope) return 0;
         if (p.y < rule.heightRange.x || p.y > rule.heightRange.y) return 0;
+        if (rule.edgeAffinity != 0f &&
+            (float)rng.NextDouble() > EdgeAcceptance(surface, p, nrm, rayTop, rule)) return 0;
 
         GameObject prefab = rule.members[rng.Next(rule.members.Length)];
         if (prefab == null) return 0;
@@ -257,6 +276,8 @@ public class TerrainDetailScatter : ChunkDecorator
         float cs = Vector3.Angle(cn, Vector3.up);
         if (cs < rule.minSlope || cs > rule.maxSlope) return 0;
         if (cp.y < rule.heightRange.x || cp.y > rule.heightRange.y) return 0;
+        if (rule.edgeAffinity != 0f &&
+            (float)rng.NextDouble() > EdgeAcceptance(surface, cp, cn, rayTop, rule)) return 0;
 
         int count = Mathf.Min(budget, Mathf.Max(1, RandRange(rng, rule.countRange.x, rule.countRange.y)));
         float moundDome = rule.domeHeight * (1f + Rand11(rng) * rule.domeJitter);
@@ -325,8 +346,9 @@ public class TerrainDetailScatter : ChunkDecorator
         var renderers = go.GetComponentsInChildren<Renderer>(false);
         ApplyLook(renderers);
 
-        float targetHeight = Mathf.Lerp(rule.sizeMeters.x, rule.sizeMeters.y,
-                                        (float)rng.NextDouble()) * sizeBoost;
+        float u = (float)rng.NextDouble();
+        if (rule.sizeExponent > 1.001f) u = Mathf.Pow(u, rule.sizeExponent);
+        float targetHeight = Mathf.Lerp(rule.sizeMeters.x, rule.sizeMeters.y, u) * sizeBoost;
 
         if (renderers.Length > 0)
         {
@@ -345,39 +367,53 @@ public class TerrainDetailScatter : ChunkDecorator
     }
 
     // Per-instance shadows, optional material override, and water-colour tint.
+    // When unifyMaterial is set, each prop's own albedo map is carried across into a
+    // property block first, so switching every prop onto the shared surge/medium
+    // shader keeps its original texture instead of flattening the whole scatter.
     void ApplyLook(Renderer[] renderers)
     {
         if (renderers.Length == 0) return;
         bool tint = waterTint > 0.001f;
+        bool unify = unifyMaterial != null;
+        if ((tint || unify) && _mpb == null) _mpb = new MaterialPropertyBlock();
+
         bool linear = QualitySettings.activeColorSpace == ColorSpace.Linear;
         Color cool = Color.Lerp(Color.white, waterTintColor, waterTint);
-        if (tint && _mpb == null) _mpb = new MaterialPropertyBlock();
 
         for (int i = 0; i < renderers.Length; i++)
         {
             Renderer r = renderers[i];
+            Material src = r.sharedMaterial;
 
             Color baseCol = Color.white;
-            Material src = r.sharedMaterial;
-            if (src != null && src.HasProperty(BaseColorId))
-                baseCol = src.GetColor(BaseColorId);
+            Texture albedo = null;
+            if (src != null)
+            {
+                if (src.HasProperty(BaseColorId)) baseCol = src.GetColor(BaseColorId);
+                if (src.HasProperty(BaseMapId)) albedo = src.GetTexture(BaseMapId);
+                else if (src.HasProperty(MainTexId)) albedo = src.GetTexture(MainTexId);
+            }
 
             if (!castShadows) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
-            if (unifyMaterial != null)
+            if (unify)
             {
                 var mats = r.sharedMaterials;
                 for (int m = 0; m < mats.Length; m++) mats[m] = unifyMaterial;
                 r.sharedMaterials = mats;
             }
 
+            bool needsBlock = tint || (unify && albedo != null);
+            if (!needsBlock) continue;
+
+            r.GetPropertyBlock(_mpb);
+            if (unify && albedo != null) _mpb.SetTexture(BaseMapId, albedo);
             if (tint)
             {
                 Color final = baseCol * cool;
-                r.GetPropertyBlock(_mpb);
                 _mpb.SetColor(BaseColorId, linear ? final.linear : final);
-                r.SetPropertyBlock(_mpb);
             }
+            r.SetPropertyBlock(_mpb);
         }
     }
 
@@ -404,6 +440,41 @@ public class TerrainDetailScatter : ChunkDecorator
         float nz = Mathf.PerlinNoise(worldX * gardenScale + 500f, worldZ * gardenScale + 500f);
         float t = Mathf.Clamp01((nz - gardenThreshold) / gardenSharpness);
         return t * t * (3f - 2f * t); // smoothstep
+    }
+
+    static float EdgeAcceptance(Collider surface, Vector3 p, Vector3 n, float rayTop,
+                                ScatterRule rule)
+    {
+        if (Mathf.Abs(rule.edgeAffinity) < 0.001f) return 1f;
+
+        float probe = Mathf.Max(0.05f, rule.edgeProbeRadius);
+
+        Vector3 t = Vector3.Cross(n, Vector3.up);
+        if (t.sqrMagnitude < 1e-6f) t = Vector3.right;
+        t.Normalize();
+        Vector3 b = Vector3.Cross(n, t).normalized;
+
+        float sum = 0f;
+        int hits = 0;
+        for (int axis = 0; axis < 2; axis++)
+        {
+            Vector3 d = (axis == 0) ? t : b;
+            for (int s = -1; s <= 1; s += 2)
+            {
+                float sx = p.x + d.x * probe * s;
+                float sz = p.z + d.z * probe * s;
+                if (SampleGround(surface, sx, sz, rayTop, out Vector3 hp, out _))
+                {
+                    sum += hp.y;
+                    hits++;
+                }
+            }
+        }
+        if (hits == 0) return 1f;
+
+        float mean = sum / hits;
+        float convexity = Mathf.Clamp((p.y - mean) / probe, -1f, 1f);
+        return Mathf.Clamp01(0.5f + 0.5f * convexity * rule.edgeAffinity);
     }
 
     static void EnsureRoot(ref GameObject root, Transform parent, int chunkX, int chunkZ)
