@@ -1171,7 +1171,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 375403894}
         m_TargetAssemblyTypeName: BackNavigation, Assembly-CSharp
         m_MethodName: GoBack
         m_Mode: 1
