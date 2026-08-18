@@ -144,6 +144,12 @@ namespace CreateEnv.UI
             Dropdown("Exploration area", SimpleEnvironmentSettings.ExplorationAreas,
                      s.explorationArea, v => { s.explorationArea = v; Edited(); });
             Slider("Visibility", s.visibility, v => { s.visibility = v; Edited(); });
+
+            // Living Ecosystem, appended below the existing sections (Design Doc §5).
+            // Built from these same row prefabs, so it inherits this form's styling.
+            Ecosystem.EcosystemFormSection.Build(
+                formContainer, headerRowPrefab, dropdownRowPrefab, sliderRowPrefab,
+                _work, Edited);
         }
 
         EnvironmentProfile Save()

@@ -102,11 +102,19 @@ namespace CreateEnv
         // technical fields above stay the single source of truth for the loader.
         public SimpleEnvironmentSettings simple = new SimpleEnvironmentSettings();
 
+        // ── Group 6: Living Ecosystem ────────────────────────────────────────
+        // Off by default, so an environment saved before this feature existed loads
+        // with the ecosystem disabled and behaves exactly as it did. JsonUtility
+        // leaves a missing object at its field initialiser, so old .json files are
+        // read without migration.
+        public Ecosystem.EcosystemSettings ecosystem = new Ecosystem.EcosystemSettings();
+
         public EnvironmentProfile Clone()
         {
             var c = (EnvironmentProfile)MemberwiseClone();
             c.speciesDensity = (float[])speciesDensity.Clone();
             c.simple = simple != null ? simple.Clone() : new SimpleEnvironmentSettings();
+            c.ecosystem = ecosystem != null ? ecosystem.Clone() : new Ecosystem.EcosystemSettings();
             return c;
         }
     }

@@ -94,6 +94,10 @@ namespace CreateEnv
             if (p.simple == null) p.simple = new SimpleEnvironmentSettings();
             p.simple.Clamp();
 
+            // Living Ecosystem layer — same rule: never trust the incoming object.
+            if (p.ecosystem == null) p.ecosystem = new Ecosystem.EcosystemSettings();
+            p.ecosystem.Clamp();
+
             // Group 1
             p.noiseScale  = NoiseScale.Clamp(p.noiseScale);
             p.octaves     = Octaves.ClampInt(p.octaves);
