@@ -69,6 +69,11 @@ namespace CreateEnv
         public static readonly Range SnowSpeed      = new Range(0f, 0.5f, 0.05f, 0.005f);
         public static readonly Range EncrustAmount  = new Range(0f, 1f, 0f, 0.01f);
         public static readonly Range EncrustScale   = new Range(0.1f, 8f, 1.6f, 0.1f);
+        public static readonly Range EncrustRelief  = new Range(0f, 1f, 0.85f, 0.01f);
+        public static readonly Range TurfAmount     = new Range(0f, 1f, 0f, 0.01f);
+        public static readonly Range TurfScale      = new Range(0.1f, 12f, 2.6f, 0.1f);
+        public static readonly Range TurfUpBias     = new Range(0f, 1f, 0.55f, 0.01f);
+        public static readonly Range TurfRelief     = new Range(0f, 1f, 0.7f, 0.01f);
 
         public const float TerrainScale = 0.25f; // EndlessTerrain.Scale — world size of a chunk unit
 
@@ -149,6 +154,19 @@ namespace CreateEnv
             p.snowSink       = SnowSpeed.Clamp(p.snowSink);
             p.encrustAmount  = EncrustAmount.Clamp(p.encrustAmount);
             p.encrustScale   = EncrustScale.Clamp(p.encrustScale);
+            p.encrustRelief  = EncrustRelief.Clamp(p.encrustRelief);
+            p.turfAmount     = TurfAmount.Clamp(p.turfAmount);
+            p.turfScale      = TurfScale.Clamp(p.turfScale);
+            p.turfUpBias     = TurfUpBias.Clamp(p.turfUpBias);
+            p.turfRelief     = TurfRelief.Clamp(p.turfRelief);
+
+            // Group 3d — time of day. -1 stays -1; anything else is a real index.
+            if (p.timeOfDay >= 0)
+                p.timeOfDay = Mathf.Clamp(p.timeOfDay, 0,
+                                          SimpleEnvironmentSettings.TimesOfDay.Length - 1);
+            p.sunElevation      = Mathf.Clamp(p.sunElevation, -10f, 90f);
+            p.sunAzimuth        = Mathf.Repeat(p.sunAzimuth, 360f);
+            p.sunLightIntensity = Mathf.Clamp(p.sunLightIntensity, 0f, 3f);
 
             // Group 3c — surface styles. Clamped against the style tables themselves,
             // so adding a style to SurfaceStyles.cs widens the valid range with no

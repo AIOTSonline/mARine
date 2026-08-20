@@ -331,7 +331,7 @@ public class TerrainDetailScatter : ChunkDecorator
         }
 
         if (rule.showOnMinimap)
-            go.AddComponent<MinimapMarker>().color = rule.minimapColor;
+            go.AddComponent<MinimapMarker>().Configure(rule.minimapColor, rule.name);
 
         Quaternion align = Quaternion.Slerp(Quaternion.identity,
             Quaternion.FromToRotation(Vector3.up, groundNormal), rule.alignToNormal);

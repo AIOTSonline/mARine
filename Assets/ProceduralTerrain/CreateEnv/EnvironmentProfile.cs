@@ -73,6 +73,23 @@ namespace CreateEnv
         public float encrustScale = 1.6f;
         public Color encrustColorA = new Color(0.62f, 0.28f, 0.42f, 1f);
         public Color encrustColorB = new Color(0.78f, 0.46f, 0.26f, 1f);
+        // Cryptic (underside/overhang) community. Profiles saved before this field
+        // existed deserialise to a=0, which the loader reads as "unset" and fills
+        // from the ocean model rather than shading undersides transparent-black.
+        public Color encrustColorC = new Color(0.44f, 0.20f, 0.26f, 1f);
+        // 0 = the old flat tint, 1 = full crust relief. See ApplyEncrustation.
+        public float encrustRelief = 0.85f;
+
+        // Algal turf: the continuous mat the encrusting colonies sit on. See
+        // ApplyAlgalTurf. Profiles saved before these fields existed deserialise
+        // to turfAmount = 0, which is exactly "no mat" — the pre-turf look — so
+        // old saves keep rendering the way they did.
+        public float turfAmount = 0f;
+        public Color turfColor = new Color(0.15f, 0.30f, 0.12f, 1f);
+        public Color turfTipColor = new Color(0.46f, 0.66f, 0.20f, 1f);
+        public float turfScale = 2.6f;
+        public float turfUpBias = 0.55f;
+        public float turfRelief = 0.7f;
 
         // ── Group 3c: Surface styles (SurfaceStyles.cs) ──────────────────────
         // Indices into TerrainTextureStyles.Names / WaterStyles.Names. Index 0 of
@@ -81,6 +98,15 @@ namespace CreateEnv
         // to 0 and renders exactly as it always did.
         public int terrainTextureStyle = 0;
         public int waterStyle = 0;
+
+        // ── Group 3d: Time of day ────────────────────────────────────────────
+        // -1 means "not set": the loader then leaves the scene's own lighting alone,
+        // so every environment authored before this keeps the look it had.
+        public int   timeOfDay = -1;
+        public float sunElevation = 45f;
+        public float sunAzimuth = 200f;
+        public Color sunLightColor = Color.white;
+        public float sunLightIntensity = 1f;
 
         // ── Group 4: Life / scatter (TerrainDetailScatter) ───────────────────
         public int     lifePackIndex = 1;     // index into LifePackLibrary (0 = None)

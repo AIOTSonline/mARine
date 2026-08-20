@@ -18,6 +18,9 @@ namespace CreateEnv
         public TerrainDetailScatter  scatter;
         public EndlessTerrain        endlessTerrain;
         public MarineSnow            snow;
+        [Tooltip("Rock/feature scatters. Left empty, every one in the scene is found and " +
+                 "given the profile's encrusting growth.")]
+        public ProceduralFeatureScatter[] featureScatters;
 
         [Tooltip("Used only when Explore is entered directly (no StartScreen). " +
                  "0 = Sample, 1 = Canyon, 2 = Kelp.")]
@@ -66,6 +69,14 @@ namespace CreateEnv
                 underwater.cameraFarMargin  = p.cameraFarMargin;
                 underwater.waterLevel       = p.waterLevel; // I-5 far plane derived inside Apply()
 
+                // Only take over the scene's light when a time of day was actually
+                // chosen; -1 leaves whatever lighting the scene already has.
+                underwater.driveSunLight     = p.timeOfDay >= 0;
+                underwater.sunElevation      = p.sunElevation;
+                underwater.sunAzimuth        = p.sunAzimuth;
+                underwater.sunLightColor     = p.sunLightColor;
+                underwater.sunLightIntensity = p.sunLightIntensity;
+
                 underwater.absorbTint     = p.absorbTint;
                 underwater.surgeAmplitude = p.surgeAmplitude;
                 underwater.surgeSpeed     = p.surgeSpeed;
@@ -74,6 +85,14 @@ namespace CreateEnv
                 underwater.encrustScale   = p.encrustScale;
                 underwater.encrustColorA  = p.encrustColorA;
                 underwater.encrustColorB  = p.encrustColorB;
+                underwater.encrustColorC  = p.encrustColorC;
+                underwater.encrustRelief  = p.encrustRelief;
+                underwater.turfAmount     = p.turfAmount;
+                underwater.turfColor      = p.turfColor;
+                underwater.turfTipColor   = p.turfTipColor;
+                underwater.turfScale      = p.turfScale;
+                underwater.turfUpBias     = p.turfUpBias;
+                underwater.turfRelief     = p.turfRelief;
             }
 
             // 2b) Suspended particulate. The wrap box is tied to fadeEnd so snow never
@@ -120,6 +139,16 @@ namespace CreateEnv
                     scatter.castShadows      = p.castShadows;
                     scatter.waterTint        = p.waterTint;
                 }
+            }
+
+            // 4b) Drop cached feature meshes before EndlessTerrain.Initialize() below
+            // streams the first chunk: the scatter caches its mesh variants the first
+            // time a chunk asks for one, so a profile change after that would not be
+            // reflected until the caches are cleared.
+            foreach (var fs in featureScatters)
+            {
+                if (fs == null) continue;
+                fs.ApplyHabitat(p.lifePackIndex);   // also drops the mesh cache
             }
 
             // 5) Streaming — LAST, after MapGenerator is configured.
@@ -189,6 +218,11 @@ namespace CreateEnv
             if (water          == null) water          = FindFirstObjectByType<WaterSurface>();
             if (scatter        == null) scatter        = FindFirstObjectByType<TerrainDetailScatter>();
             if (endlessTerrain == null) endlessTerrain = FindFirstObjectByType<EndlessTerrain>();
+            // Plural, and never left null: a scene can carry several feature scatters
+            // (one for boulders, one for spires) and every one of them needs the crust.
+            if (featureScatters == null || featureScatters.Length == 0)
+                featureScatters = FindObjectsByType<ProceduralFeatureScatter>(
+                    FindObjectsInactive.Include, FindObjectsSortMode.None);
             if (snow           == null) snow           = FindFirstObjectByType<MarineSnow>();
         }
     }

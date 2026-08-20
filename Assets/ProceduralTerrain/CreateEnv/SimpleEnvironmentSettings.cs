@@ -22,6 +22,14 @@ namespace CreateEnv
         public static readonly string[] ExplorationAreas =
             { "Small", "Medium", "Large" };
 
+        public static readonly string[] TimesOfDay =
+            { "Sunrise", "Afternoon", "Sunset", "Night" };
+
+        // Neither model is "correct": one is right about how light behaves, the other
+        // is four palettes tuned until they looked good. A choice, not a migration.
+        public static readonly string[] WaterModels =
+            { "Ocean model (physical)", "Classic palette" };
+
         // These ARE the style tables, not copies of them, so a dropdown can never
         // drift out of index alignment with SurfaceStyles.cs. Entry 0 of each is
         // the "Classic" no-op that leaves the scene materials untouched.
@@ -37,14 +45,54 @@ namespace CreateEnv
         public int   marineHabitat = 0;        // Coral Reef
         public float habitatDensity = 0.5f;    // Sparse <-> Dense
 
-        // ── 3. Water (fog thickness/light + colour palette + surface motion) ─
+        // ── 3. Water (optical type + depth + surface motion) ─────────────────
+        // waterType is the Jerlov optical water type — see OceanModel. It is the
+        // real control: fog density, water colour, how fast red drains out and how
+        // much light reaches the seabed are all derived from it rather than picked.
+        //
+        // -1 means "not set yet", which is what every profile saved before the
+        // ocean model existed deserialises to. The mapper then derives a type from
+        // the legacy waterColour preset below, so old environments keep their look
+        // and become explicit the first time they are edited.
+        public int   waterType = -1;
+        [Tooltip("Depth of the site in metres. Decides how much daylight reaches the " +
+                 "seabed, and so whether the rock carries algal turf or the dimmer " +
+                 "sponge and ascidian community.")]
+        public float siteDepthMeters = 12f;
+
+        // 0 = derive from the Jerlov type (OceanModel); 1 = the hand-tuned curve and
+        // the four fixed palettes below.
+        public int   waterModel = 1;   // Classic palette
+
+
+        public int   timeOfDay = 1;            // Afternoon
         public float waterClarity = 0.6f;      // Murky <-> Crystal Clear
-        public int   waterColour = 0;          // Tropical Blue
+        public int   waterColour = 0;          // legacy palette; seeds waterType when unset
         public int   waterMovement = 0;        // Classic (scene material untouched)
+
+        // Legacy palette -> nearest real water type, so the old four presets keep
+        // meaning something once water is physical: tropical reef water really is
+        // near the clearest oceanic types, and an algae bloom really is turbid
+        // coastal water.
+        public static int WaterTypeFromLegacyPalette(int palette)
+        {
+            switch (palette)
+            {
+                case 1:  return 5; // Coastal Green    -> 1C
+                case 2:  return 1; // Deep Ocean Blue  -> IA
+                case 3:  return 7; // Algae Bloom      -> 5C
+                default: return 2; // Tropical Blue    -> IB
+            }
+        }
+
+        public int ResolvedWaterType()
+            => waterType >= 0 ? waterType : WaterTypeFromLegacyPalette(waterColour);
 
         // ── 4. Exploration (streaming reach + fog fade distance) ─────────────
         public int   explorationArea = 1;      // Medium
-        public float visibility = 0.6f;        // Low <-> High
+        // No longer a control: the fog band now follows the exploration area, so the
+        // two cannot disagree. Kept so profiles saved with it still deserialise.
+        public float visibility = 0.6f;
 
         public void Clamp()
         {
@@ -54,6 +102,12 @@ namespace CreateEnv
             explorationArea = Mathf.Clamp(explorationArea, 0, ExplorationAreas.Length - 1);
             seafloorSurface = Mathf.Clamp(seafloorSurface, 0, SeafloorSurfaces.Length - 1);
             waterMovement   = Mathf.Clamp(waterMovement, 0, WaterMovements.Length - 1);
+            waterModel      = Mathf.Clamp(waterModel, 0, WaterModels.Length - 1);
+            timeOfDay       = Mathf.Clamp(timeOfDay, 0, TimesOfDay.Length - 1);
+
+            // -1 is meaningful (unset -> derive from legacy palette); only clamp real values.
+            if (waterType >= 0) waterType = Mathf.Clamp(waterType, 0, OceanModel.TypeCount - 1);
+            siteDepthMeters = Mathf.Clamp(siteDepthMeters, 0.5f, 60f);
 
             terrainComplexity = Mathf.Clamp01(terrainComplexity);
             habitatDensity    = Mathf.Clamp01(habitatDensity);

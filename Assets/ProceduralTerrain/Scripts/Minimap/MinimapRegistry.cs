@@ -14,4 +14,30 @@ public static class MinimapRegistry
     }
 
     public static void Remove(MinimapMarker m) => _all.Remove(m);
+
+    // Legend: one entry per kind of thing, not per instance. Markers declare
+    // themselves as they stream in, so the legend describes what is actually in the
+    // world right now rather than everything the prefabs could ever produce.
+    public struct LegendEntry { public string label; public UnityEngine.Color color; }
+
+    static readonly List<LegendEntry> _legend = new List<LegendEntry>();
+    public static IReadOnlyList<LegendEntry> Legend => _legend;
+
+    // Bumped whenever the set changes, so the radar can rebuild only when it must.
+    public static int LegendVersion { get; private set; }
+
+    public static void DeclareLegend(string label, UnityEngine.Color color)
+    {
+        if (string.IsNullOrEmpty(label)) return;
+        for (int i = 0; i < _legend.Count; i++)
+            if (_legend[i].label == label) return;
+        _legend.Add(new LegendEntry { label = label, color = color });
+        LegendVersion++;
+    }
+
+    public static void ClearLegend()
+    {
+        _legend.Clear();
+        LegendVersion++;
+    }
 }

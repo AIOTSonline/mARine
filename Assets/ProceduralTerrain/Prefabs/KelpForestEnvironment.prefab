@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1730000002}
+  - component: {fileID: 1801977305}
   m_Layer: 0
   m_Name: KelpForestEnvironment
   m_TagString: Untagged
@@ -232,7 +233,7 @@ MonoBehaviour:
     randomTilt: 10
     embed: 0.06
     showOnMinimap: 1
-    minimapColor: {r: 0.5, g: 1, b: 0.65, a: 1}
+    minimapColor: {r: 0.55, g: 0.95, b: 0.55, a: 1}
     countRange: {x: 4, y: 8}
     radius: 0.8
     radiusJitter: 0.3
@@ -256,7 +257,7 @@ MonoBehaviour:
     randomTilt: 10
     embed: 0.06
     showOnMinimap: 1
-    minimapColor: {r: 1, g: 0.6, b: 0.7, a: 1}
+    minimapColor: {r: 1.0, g: 0.55, b: 0.65, a: 1}
     countRange: {x: 8, y: 14}
     radius: 1.4
     radiusJitter: 0.3
@@ -279,7 +280,7 @@ MonoBehaviour:
     randomTilt: 10
     embed: 0.06
     showOnMinimap: 1
-    minimapColor: {r: 1, g: 0.6, b: 0.7, a: 1}
+    minimapColor: {r: 1.0, g: 0.72, b: 0.45, a: 1}
     countRange: {x: 1, y: 1}
     radius: 0.5
     radiusJitter: 0.3
@@ -323,64 +324,26 @@ MonoBehaviour:
     embed: 0.04
     addCollider: 0
     showOnMinimap: 1
-    minimapColor: {r: 0.35, g: 0.9, b: 0.4, a: 1}
-  - name: Boulder field
+    minimapColor: {r: 0.25, g: 0.75, b: 0.45, a: 1}
+  - name: Seagrass bed
     enabled: 1
-    kind: 0
-    material: {fileID: 2100000, guid: 7f0771cdcb2e4b10a5a824d3480003c9, type: 2}
-    variants: 5
-    densityPerChunk: 2.5
-    useMask: 0
-    maskScale: 0.045
-    maskThreshold: 0.55
+    kind: 9
+    material: {fileID: 2100000, guid: 079234cbbeb943feb9b9ccd921bda523, type: 2}
+    variants: 6
+    densityPerChunk: 24
+    useMask: 1
+    maskScale: 0.035
+    maskThreshold: 0.3
     minSlope: 0
-    maxSlope: 45
+    maxSlope: 38
     heightRange: {x: -1000, y: 1000}
-    sizeMeters: {x: 0.4, y: 1.6}
-    alignToNormal: 0.35
-    randomTilt: 8
-    embed: 0.16
-    addCollider: 0
-    showOnMinimap: 0
-    minimapColor: {r: 0.7, g: 0.75, b: 0.8, a: 1}
-  - name: Table rock
-    enabled: 1
-    kind: 3
-    material: {fileID: 2100000, guid: 7f0771cdcb2e4b10a5a824d3480003c9, type: 2}
-    variants: 3
-    densityPerChunk: 0.35
-    useMask: 0
-    maskScale: 0.045
-    maskThreshold: 0.55
-    minSlope: 0
-    maxSlope: 22
-    heightRange: {x: -1000, y: 1000}
-    sizeMeters: {x: 1.5, y: 2.8}
-    alignToNormal: 0.1
+    sizeMeters: {x: 0.4, y: 0.9}
+    alignToNormal: 0.2
     randomTilt: 4
-    embed: 0.1
-    addCollider: 1
+    embed: 0.05
+    addCollider: 0
     showOnMinimap: 1
-    minimapColor: {r: 0.75, g: 0.7, b: 0.55, a: 1}
-  - name: Stone arch
-    enabled: 1
-    kind: 2
-    material: {fileID: 2100000, guid: 7f0771cdcb2e4b10a5a824d3480003c9, type: 2}
-    variants: 3
-    densityPerChunk: 0.18
-    useMask: 0
-    maskScale: 0.045
-    maskThreshold: 0.55
-    minSlope: 0
-    maxSlope: 18
-    heightRange: {x: -1000, y: 1000}
-    sizeMeters: {x: 2, y: 3.4}
-    alignToNormal: 0.05
-    randomTilt: 3
-    embed: 0.12
-    addCollider: 1
-    showOnMinimap: 1
-    minimapColor: {r: 0.75, g: 0.7, b: 0.55, a: 1}
+    minimapColor: {r: 0.7, g: 0.95, b: 0.4, a: 1}
 --- !u!1 &1730000020
 GameObject:
   m_ObjectHideFlags: 0
@@ -520,3 +483,41 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1730000002}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1801977305
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1730000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f695b450481e4ae2888d4e2a88818f04, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  trackedCamera: {fileID: 0}
+  scanRadius: 18
+  refreshHz: 8
+  headingUp: 1
+  layerHeight: 2
+  visibleLayerRange: 1
+  useRegistry: 1
+  scanPhysicsByTag: 0
+  physicsMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  tagStyles: []
+  radarArea: {fileID: 0}
+  radarPixelRadius: 95
+  cornerOffset: {x: -130, y: -130}
+  clusterCellPixels: 22
+  baseBlipSize: 10
+  sizePerExtra: 3
+  densityCap: 8
+  glyphLevel: "\u25CF"
+  glyphAbove: "\u25B2"
+  glyphBelow: "\u25BC"
+  fallbackColor: {r: 0.4, g: 0.9, b: 1, a: 1}
+  playerColor: {r: 1, g: 0.92, b: 0.2, a: 1}
+  playerSize: 16
+  playerGlyph: "\u25B2"

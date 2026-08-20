@@ -15,8 +15,16 @@ float _UnderwaterSurgeSpeed;
 float4 _UnderwaterSurgeDir;
 half4 _UnderwaterEncrustA;
 half4 _UnderwaterEncrustB;
+half4 _UnderwaterEncrustC;
 float _UnderwaterEncrustAmount;
 float _UnderwaterEncrustScale;
+float _UnderwaterEncrustRelief;
+half4 _UnderwaterTurfColor;
+half4 _UnderwaterTurfTip;
+float _UnderwaterTurfAmount;
+float _UnderwaterTurfScale;
+float _UnderwaterTurfUpBias;
+float _UnderwaterTurfRelief;
 
 half3 UnderwaterBackground(float3 viewDir)
 {
@@ -112,6 +120,21 @@ float UwValueNoise(float2 p)
     return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
 }
 
+// Two octaves, written out rather than looped: the loop bound would have to be a
+// compile-time constant to unroll anyway, and this shades every rock pixel.
+float UwFbm2(float2 p)
+{
+    return (UwValueNoise(p) + UwValueNoise(p * 2.1 + 5.3) * 0.5) * (1.0 / 1.5);
+}
+
+// Height field of the crust itself: a coarse lumpiness with a finer grain on top.
+// Deliberately only two taps — ApplyEncrustation evaluates this three times to
+// difference a gradient out of it, so every tap here costs three in the frame.
+float UwCrustHeight(float2 q)
+{
+    return UwValueNoise(q * 3.1) * 0.62 + UwValueNoise(q * 9.0 + 3.3) * 0.38;
+}
+
 half3 RockSurfaceDetail(half3 albedo, float3 positionWS, float scale,
                         float mottleStrength, float strataScale, float strataStrength)
 {
@@ -132,21 +155,216 @@ half3 RockSurfaceDetail(half3 albedo, float3 positionWS, float scale,
     return albedo;
 }
 
-half3 ApplyEncrustation(half3 color, float3 positionWS, half3 N, half ao, half3 lighting)
+// Silt settling on upward-facing rock. Underwater nothing stays clean: the same
+// sediment that makes up the seabed collects on every horizontal face, so a rock
+// shares its neighbour's colour on top and only shows its own on the flanks.
+// Without it the rock is a grey object sitting on a green floor -- two unrelated
+// materials meeting at a hard line, which is most of the "pasted on" read.
+// Applied to albedo before lighting, so the dusting still catches the light.
+// Per-pixel surface relief for the textureless rock shader.
+//
+// The seabed is drawn with a real albedo + normal map, so it has per-pixel
+// lighting response. The rock has neither: its entire shading came from one flat
+// face normal, which is why the two read as different materials meeting at a hard
+// line no matter how the rock is shaped. This perturbs the normal by the gradient
+// of the same value noise the albedo mottling uses — a normal map's effect without
+// a normal map's memory. Three noise taps; set strength to 0 to skip entirely.
+half3 PerturbRockNormal(half3 N, float3 positionWS, float scale, float strength)
+{
+    if (strength <= 0.001) return N;
+
+    float2 q = positionWS.xz * scale + positionWS.y * (scale * 0.6);
+    const float e = 0.35;
+    float n0 = UwValueNoise(q);
+    float gx = UwValueNoise(q + float2(e, 0.0)) - n0;
+    float gz = UwValueNoise(q + float2(0.0, e)) - n0;
+
+    // Project the gradient into the surface plane so the bump tilts N without
+    // pulling it off the surface.
+    float3 g = float3(gx, 0.0, gz) / e;
+    g -= dot(g, N) * N;
+    return normalize(N - g * strength);
+}
+
+half3 ApplySediment(half3 albedo, half3 N, half3 sedimentColor, float amount)
+{
+    if (amount <= 0.001) return albedo;
+    float settle = pow(saturate(N.y), 1.5) * amount;
+    return lerp(albedo, sedimentColor, settle);
+}
+
+// Encrusting life on rock.
+//
+// In the photic zone bare rock effectively does not exist: encrusting corallines,
+// bryozoans and tubeworms colonise cleared substrate within 1-4 months, and
+// corallines are among the first colonisers of any bare rock in lit marine
+// habitats. So coverage is near-total and varies in *species*, not in *presence*.
+//
+// The previous form multiplied the noise mask by light, by AO and by amount, which
+// stacked three sub-1 factors and capped real coverage around 20-34% at the very
+// best patch (typically 4-13%) — i.e. permanently bare grey rock, which is the one
+// thing a submerged boulder never is. `_UnderwaterEncrustAmount` is now the
+// fraction of surface covered, so the profile value means what it says.
+//
+// Orientation now selects the community rather than suppressing it: lit up-faces
+// read as algal/coralline turf, shaded undersides as the dimmer sponge/ascidian
+// assemblage that actually lives there.
+//
+// Coverage alone was still not enough. Tinting the rock toward a crust colour
+// leaves it *smooth* — a boulder wearing paint — because the crust never touched
+// the normal, so no lighting anywhere in the frame reacted to it. Encrusting
+// growth is physically a layer with thickness and texture, and that relief is
+// most of what makes a reef read as alive rather than as coloured stone.
+//
+// So the crust now carries its own height field, and is lit by a normal bent
+// along that field's gradient (the same trick PerturbRockNormal uses on the rock
+// beneath). It also picks between three communities instead of ramping between
+// two, because a two-colour ramp reads as one organism that changes hue rather
+// than as a patchwork of different things competing for the same rock.
+//
+// `_UnderwaterEncrustRelief` is the escape hatch: at 0 the gradient taps are
+// skipped entirely and this costs what the old version cost.
+//
+// `ambient` is passed in rather than sampled here on purpose. This header is
+// included by depth-only passes that pull in Core.hlsl but NOT Lighting.hlsl —
+// UnderwaterProp and UnderwaterCoralTurf both do — and calling SampleSH() here
+// makes every one of those passes fail to compile, which shows up as a magenta
+// error material on geometry that has nothing to do with encrustation.
+// _MainLightPosition/_MainLightColor are fine: they live in Input.hlsl, which
+// Core.hlsl already brings in.
+// ── Algal turf ───────────────────────────────────────────────────────────────
+//
+// The continuous filamentous mat that covers the lit side of any rock that has
+// sat in shallow water — the fuzzy green coat on a boulder in the surf, not the
+// discrete colonies ApplyEncrustation paints.
+//
+// This exists because the two systems that were already here cannot produce it:
+//
+//  * RockSurfaceCarpet places real cushion geometry, but it is capped per rock
+//    (a few hundred colonies of a few centimetres each), so on a two-metre
+//    boulder it covers a few percent of the surface. Raising the cap to reach
+//    full coverage is thousands of merged triangles per rock.
+//  * ApplyEncrustation is deliberately *patchy* — it picks between three
+//    communities with a low-frequency selector, so it can never read as one
+//    continuous mat, which is the whole point of turf.
+//
+// So turf is a base layer: it runs before the crust, covering the rock, and the
+// crust's colonies then sit on top of it. That ordering is what makes the
+// discrete corals read as growing on a living surface instead of on bare stone.
+//
+// Two details do most of the work:
+//
+//  1. Coverage keys hard off N.y, not off half-lambert. Filamentous algae are
+//     light-limited, so a real boulder is furred on top and bare underneath with
+//     a ragged transition down the flanks — that asymmetry is most of the read.
+//  2. It is matte. Turf is applied after the rim term, so the lerp *removes* the
+//     rim wherever the mat covers. A mossy surface with a wet specular edge
+//     looks like painted stone.
+half3 ApplyAlgalTurf(half3 color, float3 positionWS, half3 N, half ao,
+                     half3 ambient)
+{
+    if (_UnderwaterTurfAmount <= 0.001) return color;
+
+    float scale = max(_UnderwaterTurfScale, 0.01);
+    float2 q = positionWS.xz * scale + positionWS.y * (scale * 0.55);
+
+    // Light-limited coverage: strongly up-facing keeps the mat, undersides stay
+    // bare rock. TurfUpBias 0 = grows anywhere, 1 = only near-horizontal tops.
+    float up = saturate(N.y * 0.5 + 0.5);
+    float upWeight = lerp(1.0, smoothstep(0.30, 0.80, up), saturate(_UnderwaterTurfUpBias));
+
+    // Two octaves at different scales so the mat's edge frays at more than one
+    // size — a single noise contour reads as a painted-on stencil.
+    float edge = UwFbm2(q) * 0.65 + UwValueNoise(q * 4.3 + 11.7) * 0.35;
+    float cover = saturate(_UnderwaterTurfAmount * upWeight * (0.55 + 0.95 * edge));
+    if (cover <= 0.001) return color;
+
+    // Filament grain. Much finer than the crust's lumps: turf is threads, not
+    // knobs, so the texture has to sit near the limit of what a pixel resolves.
+    float f0 = UwValueNoise(q * 7.0);
+    float fil = f0 * 0.6 + UwValueNoise(q * 19.0 + 5.1) * 0.4;
+
+    // Wide remap on purpose. A narrow one drove most pixels to one end or the
+    // other and the mat came out as high-contrast speckle rather than as fuzz,
+    // which at distance is also the version that aliases.
+    half3 turf = lerp(_UnderwaterTurfColor.rgb, _UnderwaterTurfTip.rgb,
+                      smoothstep(0.24, 0.94, fil));
+
+    // Relight with a fuzzed normal so the mat has depth of its own. Without this
+    // the grain lives in the albedo only and the rock goes flat under it.
+    half3 turfN = N;
+    if (_UnderwaterTurfRelief > 0.001)
+    {
+        const float e = 0.22;
+        float gx = UwValueNoise((q + float2(e, 0.0)) * 7.0) - f0;
+        float gz = UwValueNoise((q + float2(0.0, e)) * 7.0) - f0;
+        float3 g = float3(gx, 0.0, gz) / e;
+        g -= dot(g, N) * N;
+        turfN = normalize(N - g * (_UnderwaterTurfRelief * cover));
+    }
+
+    // Wrapped diffuse, no specular: filaments scatter light rather than reflect
+    // it, and they self-shade at the base of the pile.
+    half wrap = saturate(dot(turfN, _MainLightPosition.xyz) * 0.5 + 0.5);
+    half3 turfLight = _MainLightColor.rgb * (wrap * wrap) + ambient;
+    half pile = 0.82 + 0.18 * fil;
+
+    return lerp(color, turf * turfLight * ao * pile, cover);
+}
+
+half3 ApplyEncrustation(half3 color, float3 positionWS, half3 N, half ao,
+                        half3 lighting, half3 ambient)
 {
     if (_UnderwaterEncrustAmount <= 0.001) return color;
 
     float scale = max(_UnderwaterEncrustScale, 0.01);
     float2 q = positionWS.xz * scale + positionWS.y * (scale * 0.35);
-    float patch = UwValueNoise(q);
-    float fine  = UwValueNoise(q * 2.9 + 7.1);
 
-    float light = saturate(N.y * 0.5 + 0.5);
-    float cover = saturate((patch * 0.7 + fine * 0.3 - 0.44) * 3.4);
-    cover *= light * ao * _UnderwaterEncrustAmount;
+    // Coverage. Two octaves so a patch edge is ragged at more than one scale
+    // instead of being a single smooth noise contour.
+    float cover = saturate(_UnderwaterEncrustAmount * (0.75 + 0.55 * UwFbm2(q)));
 
-    half3 crust = lerp(_UnderwaterEncrustA.rgb, _UnderwaterEncrustB.rgb, saturate(fine * 1.5));
-    return lerp(color, crust * lighting, saturate(cover));
+    float h0 = UwCrustHeight(q);
+    float h  = h0 * cover;
+
+    // Which community. One low-frequency tap picks the patch; orientation decides
+    // whether it can be a lit assemblage at all, because light — not chance — is
+    // what sorts algae from filter feeders on a real rock face.
+    float sel = UwValueNoise(q * 0.45 + float2(13.0, -7.0));
+    float lit = saturate(N.y * 0.5 + 0.5);
+
+    float wA = saturate(1.0 - abs(sel - 0.30) * 3.2) * lit;
+    float wB = saturate(1.0 - abs(sel - 0.62) * 3.2) * lit;
+    float wC = saturate(1.0 - abs(sel - 0.85) * 3.2) * (1.15 - lit);
+    float wsum = wA + wB + wC + 1e-4;
+
+    half3 crust = (_UnderwaterEncrustA.rgb * wA +
+                   _UnderwaterEncrustB.rgb * wB +
+                   _UnderwaterEncrustC.rgb * wC) / wsum;
+
+    // Tips catch the light, hollows stay dark, so one patch is not one flat colour.
+    crust *= (0.80 + 0.40 * h);
+
+    // Relight the crust with its own normal. Without this the relief exists in the
+    // albedo only, which is exactly the flat look this is meant to fix.
+    half3 crustN = N;
+    if (_UnderwaterEncrustRelief > 0.001)
+    {
+        const float e = 0.35;
+        float gx = UwCrustHeight(q + float2(e, 0.0)) - h0;
+        float gz = UwCrustHeight(q + float2(0.0, e)) - h0;
+        float3 g = float3(gx, 0.0, gz) / e;
+        g -= dot(g, N) * N;          // keep the bump in the surface plane
+        crustN = normalize(N - g * (_UnderwaterEncrustRelief * cover));
+    }
+
+    half halfLambert = saturate(dot(crustN, _MainLightPosition.xyz) * 0.5 + 0.5);
+    half3 crustLight = _MainLightColor.rgb * halfLambert + ambient;
+
+    // The crust fills hollows, so its own low points self-shadow.
+    half cavity = saturate(1.0 - (1.0 - h) * 0.55 * cover);
+
+    return lerp(color, crust * crustLight * ao * cavity, cover);
 }
 
 float3 UnderwaterSurgeWorld(float heightAboveBase, float3 pivotWS, float flexibility)

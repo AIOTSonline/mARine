@@ -85,3 +85,24 @@ start_nvim_client.bat
 
 # Temporary Burst-Compiler
 MarineBiology_AR_BurstDebugInformation_DoNotShip*
+
+# ── Project-specific ─────────────────────────────────────────────────────────
+
+# macOS Finder metadata. Also untracked from the index — see note below.
+.DS_Store
+**/.DS_Store
+
+# Offline asset pipeline: source .glb models, Blender scripts and review renders.
+# ~20 MB, lives outside Assets/ and Unity never imports it, so it is a working
+# directory rather than part of the app.
+/CoralPack/
+
+# The paper (PDFs, LaTeX, Overleaf zips) — ~12 MB and not app code.
+# Worth version control, but in its own repo rather than the Unity project.
+/Docs/
+
+# Generated preview renders from tools/. The scripts that make them ARE tracked;
+# their output is not, since it is reproducible and binary.
+/tools/preview/
+/tools/venv/
+/tools/__pycache__/

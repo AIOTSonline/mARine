@@ -25,6 +25,14 @@ public class MinimapRadar : MonoBehaviour
     public float layerHeight = 2f;
     [Tooltip("Only show things within this many layers above/below you (1 = just the next layer each way).")]
     public int visibleLayerRange = 1;
+    [Tooltip("Up/down glyphs for other layers. Off: you swim above the seabed, so nearly " +
+          "everything is one layer down and the radar becomes a field of down-triangles.")]
+    public bool showDepthBands = false;
+    [Tooltip("Clamp out-of-range things to the rim. Off: it packs the edge with blips " +
+          "for things that are not actually near you.")]
+    public bool clampOutOfRange = false;
+    [Tooltip("Hard cap on blips drawn. Past this the radar is noise, not information.")]
+    public int maxBlips = 60;
 
     [Header("Sources")]
     [Tooltip("Show our own registered props (corals/seaweed).")]
@@ -43,12 +51,28 @@ public class MinimapRadar : MonoBehaviour
     [Header("Blips")]
     public float clusterCellPixels = 22f;
     public float baseBlipSize = 10f;
+    [Tooltip("Extra pixels at full density. Small on purpose: a blip that triples reads " +
+          "as a different kind of thing, not as more of the same.")]
     public float sizePerExtra = 3f;
     public int densityCap = 8;
     public string glyphLevel = "●"; // filled circle
     public string glyphAbove = "▲"; // up triangle
     public string glyphBelow = "▼"; // down triangle
     public Color fallbackColor = new Color(0.4f, 0.9f, 1f, 1f);
+
+    [Header("Orientation")]
+    [Tooltip("Ring at half the scan radius, so distances are readable at a glance.")]
+    public bool showRangeRing = true;
+    [Tooltip("Rotating N marker. With headingUp on it is the only cue for which way you face.")]
+    public bool showNorthMarker = true;
+    public Color ringColor = new Color(1f, 1f, 1f, 0.16f);
+    public Color northColor = new Color(1f, 1f, 1f, 0.55f);
+
+    [Header("Legend")]
+    [Tooltip("Tap the radar to show what the blip colours mean.")]
+    public bool legendOnTap = true;
+    public Color legendPanelColor = new Color(0f, 0.06f, 0.12f, 0.88f);
+    public int legendFontSize = 13;
 
     [Header("Player marker (always drawn on top)")]
     public Color playerColor = new Color(1f, 0.92f, 0.2f, 1f);
@@ -69,11 +93,16 @@ public class MinimapRadar : MonoBehaviour
     Font _font;
     RectTransform _container;
     Text _you;
+    Text _north;
+    RectTransform _legendPanel;
+    bool _legendOpen;
+    int _legendBuiltVersion = -1;
     readonly List<Text> _pool = new List<Text>();
     readonly List<Blip> _blips = new List<Blip>();
     readonly Dictionary<long, int> _cells = new Dictionary<long, int>();
     Collider[] _hits = new Collider[256];
     float _timer;
+    float _yaw;
 
     void Awake()
     {
@@ -106,6 +135,13 @@ public class MinimapRadar : MonoBehaviour
 
             MakeCircle(root, radarPixelRadius + 3f, new Color(0.45f, 0.85f, 1f, 0.35f)); // rim ring
             MakeCircle(root, radarPixelRadius, new Color(0f, 0.06f, 0.12f, 0.55f));       // dark fill
+
+            // Half-radius ring: without it every blip is just "somewhere in the circle".
+            if (showRangeRing)
+            {
+                MakeCircle(root, radarPixelRadius * 0.5f + 1f, ringColor);
+                MakeCircle(root, radarPixelRadius * 0.5f, new Color(0f, 0.06f, 0.12f, 0.55f));
+            }
         }
 
         _container = new GameObject("Blips", typeof(RectTransform)).GetComponent<RectTransform>();
@@ -113,6 +149,34 @@ public class MinimapRadar : MonoBehaviour
         _container.anchorMin = _container.anchorMax = _container.pivot = new Vector2(0.5f, 0.5f);
         _container.anchoredPosition = Vector2.zero;
         _container.sizeDelta = Vector2.zero;
+
+        // On its own transform so Render() can spin it: with headingUp the radar turns
+        // under you and nothing else says which way you point.
+        if (showNorthMarker)
+        {
+            _north = MakeText("N");
+            _north.color = northColor;
+            _north.fontSize = Mathf.Max(10, playerSize - 4);
+            _north.fontStyle = FontStyle.Bold;
+        }
+
+        // A transparent, raycastable disc over the radar. The rim and fill images are
+        // all raycastTarget=false, so without this there is nothing to tap.
+        if (legendOnTap)
+        {
+            var hit = new GameObject("TapTarget", typeof(Image)).GetComponent<Image>();
+            hit.transform.SetParent(radarArea, false);
+            hit.sprite = CircleSprite();
+            hit.color = new Color(0f, 0f, 0f, 0f);
+            hit.raycastTarget = true;
+            var hrt = hit.rectTransform;
+            hrt.anchorMin = hrt.anchorMax = hrt.pivot = new Vector2(0.5f, 0.5f);
+            hrt.sizeDelta = Vector2.one * (radarPixelRadius * 2f);
+
+            var btn = hit.gameObject.AddComponent<Button>();
+            btn.transition = Selectable.Transition.None;
+            btn.onClick.AddListener(ToggleLegend);
+        }
 
         // centre "you" marker — re-asserted on top every frame in Render()
         _you = MakeText(playerGlyph);
@@ -149,6 +213,7 @@ public class MinimapRadar : MonoBehaviour
 
         Vector3 cam = trackedCamera.transform.position;
         float yaw = trackedCamera.transform.eulerAngles.y * Mathf.Deg2Rad;
+        _yaw = yaw;
         float cs = Mathf.Cos(yaw), sn = Mathf.Sin(yaw);
         float sqr = scanRadius * scanRadius;
         float pxPerM = radarPixelRadius / Mathf.Max(0.01f, scanRadius);
@@ -190,14 +255,20 @@ public class MinimapRadar : MonoBehaviour
         if (Mathf.Abs(layerDiff) > Mathf.Max(0, visibleLayerRange)) return;
 
         Vector2 flat = new Vector2(d.x, d.z);
-        if (flat.sqrMagnitude > sqr) flat = flat.normalized * scanRadius; // rim clamp (out of range)
+        if (flat.sqrMagnitude > sqr)
+        {
+            if (!clampOutOfRange) return;                 // out of range: simply not shown
+            flat = flat.normalized * scanRadius;
+        }
 
         Vector2 px = headingUp
             ? new Vector2(flat.x * cs - flat.y * sn, flat.x * sn + flat.y * cs) * pxPerM
             : flat * pxPerM;
         if (px.magnitude > radarPixelRadius) px = px.normalized * radarPixelRadius;
 
-        Band band = layerDiff == 0 ? Band.Level : (layerDiff > 0 ? Band.Above : Band.Below);
+        Band band = !showDepthBands || layerDiff == 0
+                  ? Band.Level
+                  : (layerDiff > 0 ? Band.Above : Band.Below);
 
         int gx = Mathf.RoundToInt(px.x / Mathf.Max(1f, clusterCellPixels));
         int gy = Mathf.RoundToInt(px.y / Mathf.Max(1f, clusterCellPixels));
@@ -219,6 +290,13 @@ public class MinimapRadar : MonoBehaviour
 
     void Render()
     {
+        // Nearest first, then cut: a radar showing everything shows nothing.
+        if (_blips.Count > maxBlips && maxBlips > 0)
+        {
+            _blips.Sort((x, y) => x.pos.sqrMagnitude.CompareTo(y.pos.sqrMagnitude));
+            _blips.RemoveRange(maxBlips, _blips.Count - maxBlips);
+        }
+
         while (_pool.Count < _blips.Count) _pool.Add(MakeText(glyphLevel));
 
         for (int i = 0; i < _pool.Count; i++)
@@ -234,12 +312,98 @@ public class MinimapRadar : MonoBehaviour
 
             t.text = b.band == Band.Level ? glyphLevel : (b.band == Band.Above ? glyphAbove : glyphBelow);
             float dens = densityCap > 1 ? Mathf.Clamp01((b.count - 1f) / (densityCap - 1f)) : 0f;
-            t.color = Color.Lerp(b.color, Color.white, dens * 0.85f);              // neon: brighten with density
-            t.fontSize = Mathf.RoundToInt(baseBlipSize + sizePerExtra * dens * (densityCap - 1));
+
+            // Density lifts the blip; it does not repaint it. Washing to white threw
+            // away the species colour exactly where there was most of it.
+            t.color = Color.Lerp(b.color, Color.white, dens * 0.25f);
+            t.fontSize = Mathf.RoundToInt(baseBlipSize + sizePerExtra * dens);
             t.rectTransform.anchoredPosition = b.pos;
         }
 
+        // Heading-up rotates the radar by -yaw, so north lands at that angle from up.
+        if (_north != null)
+        {
+            float a = headingUp ? _yaw : 0f;
+            float r = radarPixelRadius - 12f;
+            _north.rectTransform.anchoredPosition = new Vector2(-Mathf.Sin(a) * r, Mathf.Cos(a) * r);
+            _north.transform.SetAsLastSibling();
+        }
+
         if (_you != null) _you.transform.SetAsLastSibling(); // player marker always highest z
+    }
+
+    public void ToggleLegend()
+    {
+        _legendOpen = !_legendOpen;
+        if (_legendOpen) BuildLegend();
+        if (_legendPanel != null) _legendPanel.gameObject.SetActive(_legendOpen);
+    }
+
+    // Rebuilt from the live registry, so it lists what is actually around you. Only
+    // redone when the set of kinds has changed, not every time the panel opens.
+    void BuildLegend()
+    {
+        var entries = MinimapRegistry.Legend;
+        if (_legendPanel != null && _legendBuiltVersion == MinimapRegistry.LegendVersion) return;
+        _legendBuiltVersion = MinimapRegistry.LegendVersion;
+
+        if (_legendPanel != null) Destroy(_legendPanel.gameObject);
+
+        float row = legendFontSize + 8f;
+        float width = 168f;
+        float height = Mathf.Max(row, entries.Count * row) + 16f;
+
+        var panel = new GameObject("Legend", typeof(Image)).GetComponent<Image>();
+        panel.transform.SetParent(radarArea, false);
+        panel.sprite = null;
+        panel.color = legendPanelColor;
+        panel.raycastTarget = false;
+        _legendPanel = panel.rectTransform;
+        // Below the radar, right-aligned with it, so it never covers the blips.
+        _legendPanel.anchorMin = _legendPanel.anchorMax = new Vector2(0.5f, 0.5f);
+        _legendPanel.pivot = new Vector2(0.5f, 1f);
+        _legendPanel.anchoredPosition = new Vector2(0f, -(radarPixelRadius + 8f));
+        _legendPanel.sizeDelta = new Vector2(width, height);
+
+        if (entries.Count == 0)
+        {
+            var empty = MakeLegendText("Nothing nearby yet", Color.white, _legendPanel);
+            empty.rectTransform.anchoredPosition = new Vector2(10f, -8f);
+            return;
+        }
+
+        for (int i = 0; i < entries.Count; i++)
+        {
+            var e = entries[i];
+            float y = -8f - i * row;
+
+            var dot = MakeLegendText(glyphLevel, e.color, _legendPanel);
+            dot.rectTransform.anchoredPosition = new Vector2(12f, y);
+
+            var lbl = MakeLegendText(e.label, Color.white, _legendPanel);
+            lbl.rectTransform.anchoredPosition = new Vector2(30f, y);
+            lbl.alignment = TextAnchor.MiddleLeft;
+            lbl.rectTransform.sizeDelta = new Vector2(width - 36f, row);
+        }
+    }
+
+    Text MakeLegendText(string label, Color color, RectTransform parent)
+    {
+        var t = new GameObject("LegendRow", typeof(Text)).GetComponent<Text>();
+        t.font = _font;
+        t.text = label;
+        t.color = color;
+        t.fontSize = legendFontSize;
+        t.alignment = TextAnchor.MiddleCenter;
+        t.horizontalOverflow = HorizontalWrapMode.Overflow;
+        t.verticalOverflow = VerticalWrapMode.Overflow;
+        t.raycastTarget = false;
+        var rt = t.rectTransform;
+        rt.SetParent(parent, false);
+        rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
+        rt.pivot = new Vector2(0f, 1f);
+        rt.sizeDelta = new Vector2(20f, legendFontSize + 4f);
+        return t;
     }
 
     Text MakeText(string s)

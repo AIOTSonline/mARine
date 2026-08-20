@@ -21,6 +21,18 @@ Shader "Custom/UnderwaterRock"
 
         _RimColor ("Rim Colour", Color) = (0.4, 0.75, 0.8, 1)
         _RimStrength ("Rim Strength", Range(0, 2)) = 0.6
+
+        // Silt on upward faces. Set the colour to the biome's seabed so rock and
+        // sand share a family instead of reading as two pasted-together materials.
+        // Defaults to 0 so a material that has not opted in is byte-for-byte
+        // unchanged; the shipped rock materials set it explicitly.
+        _SedimentColor ("Sediment Colour", Color) = (0.52, 0.60, 0.30, 1)
+        _SedimentAmount ("Sediment on Up-Faces", Range(0, 1)) = 0
+
+        // Per-pixel relief. The seabed has a normal map and the rock has none, so
+        // without this the rock is the only smooth-shaded thing in the frame.
+        _ReliefScale ("Surface Relief Scale", Float) = 3.5
+        _ReliefStrength ("Surface Relief Strength", Range(0, 1)) = 0
     }
 
     SubShader
@@ -45,6 +57,10 @@ Shader "Custom/UnderwaterRock"
                 half4 _ColorHigh;
                 half4 _CausticsColor;
                 half4 _RimColor;
+                half4 _SedimentColor;
+                float _SedimentAmount;
+                float _ReliefScale;
+                float _ReliefStrength;
                 float _StrataScale;
                 float _StrataStrength;
                 float _DetailScale;
@@ -85,6 +101,7 @@ Shader "Custom/UnderwaterRock"
             half4 frag(Varyings IN) : SV_Target
             {
                 half3 N = normalize(IN.normalWS);
+                N = PerturbRockNormal(N, IN.positionWS, _ReliefScale, _ReliefStrength);
                 half ao = IN.color.a;
 
                 // Colour ramp: lit tops vs shaded flanks, plus sediment strata
@@ -93,10 +110,12 @@ Shader "Custom/UnderwaterRock"
                 half3 albedo = lerp(_ColorLow.rgb, _ColorHigh.rgb, topness) * IN.color.rgb;
                 albedo = RockSurfaceDetail(albedo, IN.positionWS, _DetailScale,
                                            _MottleStrength, _StrataScale, _StrataStrength);
+                albedo = ApplySediment(albedo, N, _SedimentColor.rgb, _SedimentAmount);
 
                 Light mainLight = GetMainLight();
                 half halfLambert = saturate(dot(N, mainLight.direction) * 0.5 + 0.5);
-                half3 lighting = mainLight.color * halfLambert + SampleSH(N);
+                half3 ambient = SampleSH(N);
+                half3 lighting = mainLight.color * halfLambert + ambient;
 
                 half aoC = ao * (0.3 + 0.7 * ao);
                 half3 color = albedo * lighting * aoC;
@@ -110,7 +129,11 @@ Shader "Custom/UnderwaterRock"
                 half rim = pow(1.0 - saturate(dot(N, V)), 3.0);
                 color += _RimColor.rgb * (rim * _RimStrength * ao);
 
-                color = ApplyEncrustation(color, IN.positionWS, N, aoC, lighting);
+                // Turf first, crust second: the mat is the living surface and the
+                // crust's colonies grow on top of it. Reversing these puts coral
+                // under moss, which is the one order that cannot happen.
+                color = ApplyAlgalTurf(color, IN.positionWS, N, aoC, ambient);
+                color = ApplyEncrustation(color, IN.positionWS, N, aoC, lighting, ambient);
 
                 color = ApplyUnderwaterMedium(color, IN.positionWS, V);
                 return half4(color, 1);

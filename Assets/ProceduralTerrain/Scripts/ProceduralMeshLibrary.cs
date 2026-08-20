@@ -1,284 +1,152 @@
 using UnityEngine;
 using System.Collections.Generic;
 
-// Builds the low-poly prop meshes the biomes scatter around: rocks, spires,
-// swim-through arches, mushroom overhangs, hollow grotto caves, kelp plants and
-// glow anemones. This is the workaround for a 2D heightmap having no overhangs:
-// the terrain stays a cheap heightfield, and true 3D features are separate
-// meshes seated on top of it.
+// Builds the low-poly prop meshes the biomes scatter around: kelp, seagrass, glow
+// anemones, sea fans and coral nubs. The terrain stays a cheap 2D heightfield and
+// these ride on top of it as separate meshes.
+//
+// Rock is gone on purpose. Boulders and spires were the dominant visual mass and
+// they read as ornaments sitting on a surface rather than as part of one; the whole
+// generator, its fracture/joint/bedding model and the talus that skirted it were
+// removed rather than merely turned down. Nothing here builds stone.
 //
 // Everything is deterministic per seed, generated once at startup and shared by
 // every instance (no per-instance mesh memory). Meshes are flat-shaded triangle
 // soup with baked vertex colour: rgb = subtle tint variation, a = ambient
-// occlusion (grotto interiors bake dark = instant cave mood without lights).
-// No textures anywhere — the rock/kelp shaders shade with colour ramps, so the
-// whole feature set costs a few small meshes and zero texture memory.
+// occlusion. No textures anywhere — the prop/kelp shaders shade with colour
+// ramps, so the whole feature set costs a few small meshes and zero texture
+// memory.
 public static class ProceduralMeshLibrary
 {
+    // Values are explicit and must stay put: `kind` is serialised as an int in the
+    // biome prefabs, so renumbering would silently turn every kelp rule into
+    // something else. 0 (Boulder), 1 (Spire), 2 (Arch), 3 (Overhang) and 4 (Grotto)
+    // are all retired rock kinds — do not reuse those numbers. Anything still
+    // carrying one falls through to the default in Build() and logs a warning.
     public enum FeatureKind
     {
-        Boulder,     // classic rounded rock, flattened base
-        Spire,       // tall tapering pinnacle
-        Arch,        // half-torus you can swim through
-        Overhang,    // mushroom/table rock: wide cap on a narrow stem
-        Grotto,      // hollow dome with a mouth — a fake cave
-        KelpPlant,   // fan of tall ribbons (sways in the vertex shader)
-        GlowAnemone, // squat dome with emissive tentacle tips
-        SeaFan       // branching gorgonian fan (the classic reef silhouette)
+        KelpPlant   = 5, // fan of tall ribbons (sways in the vertex shader)
+        GlowAnemone = 6, // squat dome with emissive tentacle tips
+        SeaFan      = 7, // branching gorgonian fan (the classic reef silhouette)
+        CoralNub    = 8, // finger-sized colony, used as ground/coral detail
+        SeagrassTuft= 9  // short arcing blades; scattered densely it reads as a bed
     }
 
     // Nominal size ~1 m tall; the scatter rescales via renderer bounds.
-    public static Mesh Build(FeatureKind kind, int seed)
+    //
+    // `jointSeed` is the per-area seed: pass the same value to every feature in
+    // one patch and the kinds that care share a trait across it. Seagrass uses it
+    // for the current direction, so a whole bed leans together instead of each
+    // shoot picking its own. Defaults to `seed`, i.e. every instance independent.
+    public static Mesh Build(FeatureKind kind, int seed, int jointSeed = 0)
     {
         var rng = new System.Random(seed);
+        if (jointSeed == 0) jointSeed = seed;
         switch (kind)
         {
-            case FeatureKind.Spire:       return BuildSpire(rng, seed);
-            case FeatureKind.Arch:        return BuildArch(rng, seed);
-            case FeatureKind.Overhang:    return BuildOverhang(rng, seed);
-            case FeatureKind.Grotto:      return BuildGrotto(rng, seed);
             case FeatureKind.KelpPlant:   return BuildKelpPlant(rng, seed);
             case FeatureKind.GlowAnemone: return BuildGlowAnemone(rng, seed);
             case FeatureKind.SeaFan:      return BuildSeaFan(rng, seed);
-            default:                      return BuildBoulder(rng, seed);
+            case FeatureKind.CoralNub:    return BuildCoralNub(rng, seed);
+            case FeatureKind.SeagrassTuft:return BuildSeagrassTuft(rng, seed, jointSeed);
+            default:
+                // Retired rock ids land here. Fall back rather than return null,
+                // which the scatter would instantiate as an empty renderer.
+                Debug.LogWarning($"ProceduralMeshLibrary: unknown FeatureKind "
+                                 + $"{(int)kind}; rocks were removed. Using CoralNub.");
+                return BuildCoralNub(rng, seed);
         }
     }
 
-    // ── Rocks ────────────────────────────────────────────────────────────────
+    // ── Reef life ────────────────────────────────────────────────────────────
 
-    static Mesh BuildBoulder(System.Random rng, int seed)
+    // A clump of soft cushions, scattered in the hundreds across a hard surface
+    // and merged into one mesh, so the whole budget is a few dozen
+    // triangles and there is no per-instance cost at all.
+    //
+    // This started as tall thin lobes and read as *spikes* — a rock wearing thorns.
+    // Encrusting turf is the opposite shape: wider than it is tall, rounded, and
+    // low, with the impression of mass coming from many clumps crowding each other
+    // rather than from any one of them being interesting. So each cushion here is
+    // deliberately squat (height ~0.45 of its width), smooth-shaded, and small; the
+    // mossy read comes from density, which is why the carpet runs at a few hundred
+    // per host instead of a few dozen.
+    //
+    // Grown along +Y; the carpet rotates it onto the face normal.
+    static Mesh BuildCoralNub(System.Random rng, int seed)
     {
-        List<Vector3> verts; List<int> tris;
-        Icosphere(2, out verts, out tris);
+        var verts = new List<Vector3>();
+        var tris = new List<int>();
 
-        var style = RockStyle.Random(rng, seed, 0.2f);
+        // Triangle count is multiplied by hundreds of colonies per rock, so it is the
+        // most expensive number in this file. Two rings plus an apex fan is 30
+        // triangles a cushion, and 1-2 cushions puts a clump at 30-60.
+        //
+        // Dropping to a single ring saves a third, but a cushion then has only its
+        // base ring and an apex, so it comes out a faceted cone and the turf loses
+        // exactly the soft roundness that makes it read as moss. The saving is taken
+        // out of carpetMaxPerRock instead, where it costs coverage rather than shape.
+        int cushions = 1 + rng.Next(2);
+        const int segs = 6;
+        const int rings = 2;
 
-        for (int i = 0; i < verts.Count; i++)
+        for (int c = 0; c < cushions; c++)
         {
-            Vector3 v = style.ShapeFromDirection(verts[i].normalized) * 0.5f;
-            verts[i] = RockStyle.SeatBase(v, -0.18f, 0.14f);
-        }
+            // Cushions after the first sit beside the leader and slightly lower, so a
+            // clump reads as one spreading colony rather than as separate balls.
+            float offAng = Lerp(rng, 0f, Mathf.PI * 2f);
+            float offDist = c == 0 ? 0f : Lerp(rng, 0.35f, 0.75f);
+            Vector3 centre = new Vector3(Mathf.Cos(offAng) * offDist, c == 0 ? 0f : Lerp(rng, -0.12f, 0f),
+                                         Mathf.Sin(offAng) * offDist);
+            float width = c == 0 ? 1f : Lerp(rng, 0.55f, 0.85f);
+            float height = width * Lerp(rng, 0.38f, 0.55f);   // squat, never a spike
 
-        return FinishFlat(verts, tris, seed,
-            ao: p => Mathf.Clamp01(0.6f + p.y * 0.9f));
-    }
-
-    static Mesh BuildSpire(System.Random rng, int seed)
-    {
-        var d = new Draft();
-        int rings = 9, segs = 8;
-        float height = 1f;
-        float baseR = Lerp(rng, 0.16f, 0.24f);
-        float lean = Lerp(rng, 0f, 0.12f);
-        float leanAng = Lerp(rng, 0f, Mathf.PI * 2f);
-
-        var ringVerts = new Vector3[rings + 1, segs];
-        for (int r = 0; r <= rings; r++)
-        {
-            float t = r / (float)rings;
-            // Tapering column with a slight bulge low down and wobbling centre.
-            float radius = baseR * Mathf.Pow(1f - t, 0.72f) * (1f + 0.25f * Mathf.Sin(t * 9f + seed)) + 0.015f;
-            Vector3 centre = new Vector3(
-                Mathf.Cos(leanAng) * lean * t * t,
-                t * height,
-                Mathf.Sin(leanAng) * lean * t * t);
-
-            for (int s = 0; s < segs; s++)
+            int baseIndex = verts.Count;
+            for (int r = 0; r <= rings; r++)
             {
-                float a = s / (float)segs * Mathf.PI * 2f;
-                Vector3 dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                float n = 1f + 0.35f * Fbm(new Vector3(a * 0.7f, t * 3.1f, 0f), 2, seed);
-                ringVerts[r, s] = centre + dir * (radius * n);
-            }
-        }
-
-        for (int r = 0; r < rings; r++)
-            for (int s = 0; s < segs; s++)
-            {
-                int s1 = (s + 1) % segs;
-                d.Quad(ringVerts[r, s], ringVerts[r, s1], ringVerts[r + 1, s1], ringVerts[r + 1, s]);
-            }
-
-        // Top cap fan.
-        Vector3 tip = new Vector3(Mathf.Cos(leanAng) * lean, height + 0.03f, Mathf.Sin(leanAng) * lean);
-        for (int s = 0; s < segs; s++)
-            d.Tri(ringVerts[rings, s], ringVerts[rings, (s + 1) % segs], tip);
-
-        return d.ToFlatMesh(seed, ao: p => Mathf.Clamp01(0.55f + p.y * 0.6f));
-    }
-
-    static Mesh BuildArch(System.Random rng, int seed)
-    {
-        var d = new Draft();
-        int steps = 12, segs = 7;
-        float major = 0.5f;
-        float minor = Lerp(rng, 0.10f, 0.15f);
-        float widen = Lerp(rng, 1.1f, 1.5f); // feet thicker than the crown
-
-        // Same rock language as the boulders (displacement + bedding), but with the
-        // fracture half-spaces cleared: those are sized against a solid ellipsoid and
-        // would slice a swept arch in half. Without this the arch reads as a smooth
-        // tube next to faceted boulders — a different material entirely.
-        var style = RockStyle.Random(rng, seed, 0.55f);
-        style.fractures = null;
-
-        var ringCache = new Vector3[steps + 1, segs];
-        for (int i = 0; i <= steps; i++)
-        {
-            // Sweep slightly past the horizontal so the feet embed in the sand.
-            float theta = Mathf.Lerp(-0.15f, Mathf.PI + 0.15f, i / (float)steps);
-            Vector3 centre = new Vector3(Mathf.Cos(theta) * major, Mathf.Sin(theta) * major, 0f);
-
-            float crown = Mathf.Sin(theta);                       // 1 at apex, 0 at feet
-            float thick = minor * Mathf.Lerp(widen, 1f, crown);
-
-            for (int s = 0; s < segs; s++)
-            {
-                float a = s / (float)segs * Mathf.PI * 2f;
-                // Ring frame around the tube: normal (radial) and binormal (Z).
-                Vector3 radial = new Vector3(Mathf.Cos(theta), Mathf.Sin(theta), 0f);
-                Vector3 outward = radial * Mathf.Cos(a) + Vector3.forward * Mathf.Sin(a);
-                Vector3 p = centre + outward * thick;
-                ringCache[i, s] = style.Weather(p, outward, centre, thick * 2.2f);
-            }
-        }
-
-        for (int i = 0; i < steps; i++)
-            for (int s = 0; s < segs; s++)
-            {
-                int s1 = (s + 1) % segs;
-                d.Quad(ringCache[i, s], ringCache[i, s1], ringCache[i + 1, s1], ringCache[i + 1, s]);
-            }
-
-        return d.ToFlatMesh(seed,
-            ao: p => Mathf.Clamp01(0.6f + p.y * 0.7f));
-    }
-
-    static Mesh BuildOverhang(System.Random rng, int seed)
-    {
-        var d = new Draft();
-        int rings = 10, segs = 9;
-        float capR = Lerp(rng, 0.42f, 0.55f);
-        float stemR = Lerp(rng, 0.13f, 0.2f);
-
-        var ringVerts = new Vector3[rings + 1, segs];
-        for (int r = 0; r <= rings; r++)
-        {
-            float t = r / (float)rings;
-            // Profile: narrow stem, sudden wide cap, rounded top = table rock.
-            float radius;
-            if      (t < 0.55f) radius = Mathf.Lerp(stemR * 1.4f, stemR, t / 0.55f);
-            else if (t < 0.75f) radius = Mathf.Lerp(stemR, capR, SmoothStep((t - 0.55f) / 0.2f));
-            else                radius = Mathf.Lerp(capR, capR * 0.45f, SmoothStep((t - 0.75f) / 0.25f));
-
-            for (int s = 0; s < segs; s++)
-            {
-                float a = s / (float)segs * Mathf.PI * 2f;
-                float n = 1f + 0.3f * Fbm(new Vector3(Mathf.Cos(a), t * 2.7f, Mathf.Sin(a)) * 1.9f, 2, seed);
-                ringVerts[r, s] = new Vector3(Mathf.Cos(a) * radius * n, t, Mathf.Sin(a) * radius * n);
-            }
-        }
-
-        for (int r = 0; r < rings; r++)
-            for (int s = 0; s < segs; s++)
-            {
-                int s1 = (s + 1) % segs;
-                d.Quad(ringVerts[r, s], ringVerts[r, s1], ringVerts[r + 1, s1], ringVerts[r + 1, s]);
-            }
-
-        Vector3 top = new Vector3(0f, 1.02f, 0f);
-        for (int s = 0; s < segs; s++)
-            d.Tri(ringVerts[rings, s], ringVerts[rings, (s + 1) % segs], top);
-
-        // Underside of the cap bakes dark — reads as shadow under the ledge.
-        return d.ToFlatMesh(seed,
-            ao: p =>
-            {
-                float underCap = Mathf.Clamp01((p.y - 0.35f) / 0.3f) *
-                                 Mathf.Clamp01((0.72f - p.y) / 0.2f);
-                return Mathf.Clamp01(0.65f + p.y * 0.45f - underCap * 0.45f);
-            });
-    }
-
-    // Hollow squashed dome with a mouth opening: outer shell, darker inner
-    // shell, and a bridged rim so the wall reads as solid rock.
-    static Mesh BuildGrotto(System.Random rng, int seed)
-    {
-        int lat = 7, lon = 14;
-        float outerR = 0.5f, innerR = 0.40f, squash = 0.72f;
-        float mouthYaw = Lerp(rng, 0f, Mathf.PI * 2f);
-        Vector3 mouthDir = new Vector3(Mathf.Cos(mouthYaw), -0.15f, Mathf.Sin(mouthYaw)).normalized;
-        float mouthCos = Mathf.Cos(Lerp(rng, 0.55f, 0.7f)); // ~32–40° opening
-
-        var d = new Draft();
-
-        // Lattice of directions; theta sweeps a bit past the equator to embed.
-        var dirs = new Vector3[lat + 1, lon];
-        for (int i = 0; i <= lat; i++)
-        {
-            float theta = i / (float)lat * (Mathf.PI * 0.62f);
-            for (int j = 0; j < lon; j++)
-            {
-                float phi = j / (float)lon * Mathf.PI * 2f;
-                dirs[i, j] = new Vector3(
-                    Mathf.Sin(theta) * Mathf.Cos(phi),
-                    Mathf.Cos(theta),
-                    Mathf.Sin(theta) * Mathf.Sin(phi));
-            }
-        }
-
-        System.Func<Vector3, float, Vector3> shape = (dir, radius) =>
-        {
-            float n = 1f + 0.22f * Fbm(dir * 2.2f, 3, seed);
-            Vector3 v = dir * (radius * n);
-            v.y *= squash;
-            return v;
-        };
-
-        // A cell is "open" (part of the mouth) if its centre direction falls
-        // inside the mouth cone. Same test for both shells => matching holes.
-        System.Func<int, int, bool> cellOpen = (i, j) =>
-        {
-            Vector3 c = (dirs[i, j] + dirs[i + 1, j] + dirs[i, (j + 1) % lon] + dirs[i + 1, (j + 1) % lon]).normalized;
-            return Vector3.Dot(c, mouthDir) > mouthCos;
-        };
-
-        for (int i = 0; i < lat; i++)
-        {
-            for (int j = 0; j < lon; j++)
-            {
-                int j1 = (j + 1) % lon;
-                Vector3 o00 = shape(dirs[i, j], outerR),  o10 = shape(dirs[i + 1, j], outerR),
-                        o01 = shape(dirs[i, j1], outerR), o11 = shape(dirs[i + 1, j1], outerR);
-                Vector3 n00 = shape(dirs[i, j], innerR),  n10 = shape(dirs[i + 1, j], innerR),
-                        n01 = shape(dirs[i, j1], innerR), n11 = shape(dirs[i + 1, j1], innerR);
-
-                if (cellOpen(i, j))
+                float t = r / (float)rings;
+                // Quarter-sine profile: full width at the rock, doming over to the top.
+                float radius = width * Mathf.Cos(t * Mathf.PI * 0.5f);
+                float y = height * Mathf.Sin(t * Mathf.PI * 0.5f);
+                for (int s = 0; s < segs; s++)
                 {
-                    // Mouth cell: bridge outer to inner along the edges that
-                    // border solid cells, forming the rocky rim of the opening.
-                    if (i > 0 && !cellOpen(i - 1, j)) d.Quad(o00, o01, n01, n00);
-                    if (i < lat - 1 && !cellOpen(i + 1, j)) d.Quad(o11, o10, n10, n11);
-                    if (!cellOpen(i, (j - 1 + lon) % lon)) d.Quad(o10, o00, n00, n10);
-                    if (!cellOpen(i, j1)) d.Quad(o01, o11, n11, n01);
-                    continue;
+                    float sa = s / (float)segs * Mathf.PI * 2f;
+                    // A little per-vertex wobble so a field of cushions is not a field
+                    // of identical domes.
+                    float wob = 1f + 0.16f * Fbm(new Vector3(Mathf.Cos(sa) * 2.1f, t * 1.7f,
+                                                             Mathf.Sin(sa) * 2.1f), 2, seed + c * 331);
+                    verts.Add(centre + new Vector3(Mathf.Cos(sa) * radius * wob, y,
+                                                   Mathf.Sin(sa) * radius * wob));
                 }
+            }
+            int apex = verts.Count;
+            verts.Add(centre + new Vector3(0f, height, 0f));
 
-                d.Quad(o00, o01, o11, o10);   // outer, facing out
-                d.Quad(n00, n10, n11, n01);   // inner, facing in
+            for (int r = 0; r < rings; r++)
+                for (int s = 0; s < segs; s++)
+                {
+                    int s1 = (s + 1) % segs;
+                    int a0 = baseIndex + r * segs + s;
+                    int a1 = baseIndex + r * segs + s1;
+                    int b0 = baseIndex + (r + 1) * segs + s;
+                    int b1 = baseIndex + (r + 1) * segs + s1;
+                    tris.Add(a0); tris.Add(b0); tris.Add(b1);
+                    tris.Add(a0); tris.Add(b1); tris.Add(a1);
+                }
+            for (int s = 0; s < segs; s++)
+            {
+                int s1 = (s + 1) % segs;
+                tris.Add(baseIndex + rings * segs + s);
+                tris.Add(apex);
+                tris.Add(baseIndex + rings * segs + s1);
             }
         }
 
-        // Interior bakes very dark, brightening toward the mouth — cave light.
-        return d.ToFlatMesh(seed,
-            ao: p =>
-            {
-                float r = new Vector3(p.x, p.y / squash, p.z).magnitude;
-                float inside = Mathf.Clamp01((outerR * 0.97f - r) / (outerR - innerR));
-                float towardMouth = Mathf.Clamp01(Vector3.Dot(p.normalized, mouthDir));
-                float interiorAO = Mathf.Lerp(0.14f, 0.5f, towardMouth * towardMouth);
-                return Mathf.Lerp(Mathf.Clamp01(0.6f + p.y * 0.8f), interiorAO, inside);
-            });
+        // AO darkens toward the base so a clump reads as sitting in a shared mass
+        // rather than as separate objects balanced on the rock.
+        float species = (float)rng.NextDouble();
+        return FinishSmooth(verts, tris, seed,
+            ao: p => Mathf.Clamp01(0.55f + p.y * 0.9f), species: species);
     }
 
     // ── Life ─────────────────────────────────────────────────────────────────
@@ -324,6 +192,68 @@ public static class ProceduralMeshLibrary
         }
 
         // Smooth normals suit ribbons; uv.y drives sway + colour ramp in shader.
+        return d.ToSmoothMesh();
+    }
+
+    // A seagrass shoot: many short blades arcing over from a near-point base.
+    // ~110 triangles, because the effect is density — see tools/preview_seagrass.py.
+    //
+    // Three things decide whether a patch reads as a bed or as scattered sprigs, and
+    // all three are easy to get wrong: blades share one current direction (carried by
+    // `jointSeed`) so the bed has a grain; they lean from the sediment rather than
+    // launching vertical; and they are widest about a third up, not at the base.
+    static Mesh BuildSeagrassTuft(System.Random rng, int seed, int jointSeed)
+    {
+        var d = new Draft();
+        int blades = 9 + rng.Next(5);
+        int segsY = 5;
+
+        // The current belongs to the patch, not the shoot.
+        float current = (float)(new System.Random(jointSeed).NextDouble()) * Mathf.PI * 2f;
+        float leanDir = current + Lerp(rng, -0.45f, 0.45f);
+
+        for (int b = 0; b < blades; b++)
+        {
+            float yaw = leanDir + Lerp(rng, -0.5f, 0.5f);
+            // Long blades dominate so they overlap and close the gaps between shoots.
+            float t01 = (float)rng.NextDouble();
+            float bladeH = 0.70f + 0.30f * Mathf.Pow(t01, 1.2f);
+            float bend = Lerp(rng, 0.55f, 1.05f);
+            float w0 = Lerp(rng, 0.038f, 0.058f);
+
+            Vector3 lean = new Vector3(Mathf.Cos(yaw), 0f, Mathf.Sin(yaw));
+            Vector3 side = new Vector3(-Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
+            Vector3 root = lean * Lerp(rng, 0f, 0.055f) + side * Lerp(rng, -0.055f, 0.055f);
+
+            float hue = Lerp(rng, -0.5f, 0.5f);
+            Color tint = new Color(1f + hue * 0.10f, 1f, 1f - hue * 0.12f, 1f);
+
+            var prev = new Vector3[2];
+            var prevUV = new Vector2[2];
+            for (int i = 0; i <= segsY; i++)
+            {
+                float t = i / (float)segsY;
+                float y = bladeH * (t - 0.30f * t * t * t * bend);
+                float lat = bladeH * bend * (0.28f * t + 0.72f * Mathf.Pow(t, 1.7f));
+                float swell = Mathf.Sin(Mathf.Min(t, 0.30f) / 0.30f * 1.5708f);
+                float width = w0 * (0.42f + 0.62f * swell - 0.46f * t);
+
+                Vector3 centre = root + lean * lat + Vector3.up * y;
+                Vector3 a = centre - side * width;
+                Vector3 c = centre + side * width;
+                var uvA = new Vector2(0f, t);
+                var uvC = new Vector2(1f, t);
+
+                if (i > 0)
+                    d.QuadUV(prev[0], prev[1], c, a, prevUV[0], prevUV[1], uvC, uvA, tint);
+
+                prev[0] = a; prev[1] = c;
+                prevUV[0] = uvA; prevUV[1] = uvC;
+            }
+        }
+
+        // Same contract as kelp: uv.y drives sway and the root-to-tip ramp, so this
+        // renders on UnderwaterKelp unchanged.
         return d.ToSmoothMesh();
     }
 
@@ -414,13 +344,46 @@ public static class ProceduralMeshLibrary
 
     // Converts an indexed mesh (e.g. a displaced icosphere) into a flat-shaded
     // Draft and bakes it.
-    static Mesh FinishFlat(List<Vector3> verts, List<int> tris, int seed,
-                           System.Func<Vector3, float> ao)
+    // Smooth-shaded, index-shared finish for the soft organic kinds.
+    //
+    // FinishFlat splits every triangle into three unique vertices to get hard
+    // facets, which is right for stone and wrong for anything soft — a faceted
+    // cushion reads as a chipped pebble or a thorn, not as moss. This keeps the
+    // shared indexing (a third of the vertices) and averages the normals.
+    //
+    // UV.y carries the vertex's height above its OWN base, 0 at the rock and 1 at
+    // the tip. The carpet merges hundreds of colonies into one chunk-space mesh, so
+    // object-space Y no longer tells a shader anything about an individual colony —
+    // this is what lets the turf shader sway tips while bases stay planted.
+    // UV.x carries a per-colony random, so neighbours vary in species and phase.
+    static Mesh FinishSmooth(List<Vector3> verts, List<int> tris, int seed,
+                             System.Func<Vector3, float> ao, float species)
     {
-        var d = new Draft();
-        for (int i = 0; i < tris.Count; i += 3)
-            d.Tri(verts[tris[i]], verts[tris[i + 1]], verts[tris[i + 2]]);
-        return d.ToFlatMesh(seed, ao);
+        float minY = float.MaxValue, maxY = float.MinValue;
+        for (int i = 0; i < verts.Count; i++)
+        {
+            if (verts[i].y < minY) minY = verts[i].y;
+            if (verts[i].y > maxY) maxY = verts[i].y;
+        }
+        float span = Mathf.Max(1e-4f, maxY - minY);
+
+        var uv = new Vector2[verts.Count];
+        var cols = new Color[verts.Count];
+        for (int i = 0; i < verts.Count; i++)
+        {
+            float h = (verts[i].y - minY) / span;
+            uv[i] = new Vector2(species, h);
+            cols[i] = new Color(1f, 1f, 1f, Mathf.Clamp01(ao(verts[i])));
+        }
+
+        var mesh = new Mesh { name = "SmoothFeature" };
+        mesh.SetVertices(verts);
+        mesh.SetTriangles(tris, 0);
+        mesh.SetUVs(0, new List<Vector2>(uv));
+        mesh.SetColors(new List<Color>(cols));
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
     }
 
     // ── Draft: triangle-soup builder ─────────────────────────────────────────
@@ -605,203 +568,4 @@ public static class ProceduralMeshLibrary
     static float SmoothStep(float t) => t * t * (3f - 2f * t);
     static float Lerp(System.Random rng, float a, float b) => Mathf.Lerp(a, b, (float)rng.NextDouble());
 
-    static float RidgedFbm(Vector3 p, int octaves, int seed)
-    {
-        float sum = 0f, amp = 1f, freq = 1f, norm = 0f;
-        for (int i = 0; i < octaves; i++)
-        {
-            float n = ValueNoise(p * freq, seed + i * 131) * 2f - 1f;
-            sum += (1f - Mathf.Abs(n)) * amp;
-            norm += amp;
-            amp *= 0.55f;
-            freq *= 2.3f;
-        }
-        return sum / norm;
-    }
-
-    // Turns smooth procedural blobs into something that reads as rock.
-    //
-    // The old prop meshes were bodies of revolution with a little low-frequency
-    // noise on top — the eye recognises those instantly as "a sphere someone
-    // wobbled", which is exactly the artificial look. Real rock has three things
-    // none of that had:
-    //
-    //   1. Fracture faces  – rock splits along planes, so it is covered in flat
-    //                        facets meeting at hard edges, not smooth curvature.
-    //   2. Bedding strata  – sedimentary layers of different hardness: resistant
-    //                        bands jut out, soft bands erode back, and the underside
-    //                        of each hard band overhangs the one below it.
-    //   3. Detail at two scales – broad mass shape plus fine chipped surface.
-    //
-    // RockStyle bundles those parameters, Weather() applies them to any point on any
-    // shape (blob, swept cliff, cave shell), and every rock-like feature in
-    // ProceduralMeshLibrary goes through it so the whole biome looks like one rock
-    // type instead of a bag of unrelated primitives.
-    public class RockStyle
-    {
-        // Ellipsoid the shape is stretched onto. Non-uniform axes alone kill a lot
-        // of the "ball" reading before any noise is applied.
-        public Vector3 axes = Vector3.one;
-
-        [Tooltip("Broad mass lumps: low frequency, high amplitude.")]
-        public float broadFreq = 1.9f;
-        public float broadAmp = 0.22f;
-
-        [Tooltip("Chipped surface: high frequency, low amplitude.")]
-        public float detailFreq = 7.5f;
-        public float detailAmp = 0.05f;
-
-        [Tooltip("Ridged creases that run across the mass like fracture lines.")]
-        public float creaseFreq = 3.4f;
-        public float creaseAmp = 0.07f;
-
-        [Header("Bedding")]
-        [Tooltip("Number of sedimentary layers across one unit of height.")]
-        public float strataCount = 6f;
-        public float strataAmp = 0.06f;
-        [Tooltip("Bedding plane normal — tilted slightly so layers aren't dead level.")]
-        public Vector3 beddingUp = Vector3.up;
-
-        [Header("Fracture")]
-        [Tooltip("Half-spaces the shape is clipped against; each one becomes a flat face.")]
-        public Vector4[] fractures = new Vector4[0]; // xyz = plane normal, w = distance
-
-        public int seed;
-
-        // Builds a coherent rock style. `flatness` biases toward slabby, heavily
-        // bedded rock (cliffs) vs chunky blocks (boulders).
-        public static RockStyle Random(System.Random rng, int seed, float flatness = 0f)
-        {
-            var s = new RockStyle { seed = seed };
-
-            float wide = Lerp(rng, 0.85f, 1.35f);
-            float tall = Mathf.Lerp(Lerp(rng, 0.7f, 1.15f), Lerp(rng, 0.45f, 0.7f), flatness);
-            s.axes = new Vector3(wide, tall, Lerp(rng, 0.8f, 1.3f) * wide);
-
-            // These amplitudes were tuned against offline renders of the generated
-            // meshes: anything weaker and the fracture faces and bedding stop reading
-            // at all, and the rock falls straight back to looking like a wobbled ball.
-            s.broadFreq = Lerp(rng, 1.0f, 1.7f);
-            s.broadAmp = Lerp(rng, 0.26f, 0.40f);
-            s.detailFreq = Lerp(rng, 5f, 8f);
-            s.detailAmp = Lerp(rng, 0.06f, 0.11f);
-            s.creaseFreq = Lerp(rng, 2.0f, 3.4f);
-            s.creaseAmp = Lerp(rng, 0.10f, 0.17f);
-
-            s.strataCount = Lerp(rng, 5f, 10f) * Mathf.Lerp(1f, 1.6f, flatness);
-            s.strataAmp = Lerp(rng, 0.09f, 0.16f) * Mathf.Lerp(1f, 1.7f, flatness);
-
-            // A few degrees of dip: dead-level layers look like a stack of pancakes.
-            float dip = Lerp(rng, 0.03f, 0.16f);
-            float dipYaw = Lerp(rng, 0f, Mathf.PI * 2f);
-            s.beddingUp = new Vector3(Mathf.Cos(dipYaw) * dip, 1f, Mathf.Sin(dipYaw) * dip).normalized;
-
-            s.fractures = BuildFractures(rng, s.axes, 6 + rng.Next(5), 0.52f, 0.86f);
-            return s;
-        }
-
-        // Random half-spaces sized against the ellipsoid so each one shaves a real
-        // slice off rather than missing the shape or cutting it in half.
-        public static Vector4[] BuildFractures(System.Random rng, Vector3 axes, int count,
-                                               float minKeep, float maxKeep)
-        {
-            var planes = new Vector4[Mathf.Max(0, count)];
-            for (int i = 0; i < planes.Length; i++)
-            {
-                // Bias slightly away from straight down so bases stay seatable.
-                Vector3 n = new Vector3(
-                    (float)rng.NextDouble() * 2f - 1f,
-                    (float)rng.NextDouble() * 2f - 0.6f,
-                    (float)rng.NextDouble() * 2f - 1f);
-                if (n.sqrMagnitude < 1e-5f) n = Vector3.right;
-                n.Normalize();
-
-                // Extent of the ellipsoid along n.
-                float extent = new Vector3(axes.x * n.x, axes.y * n.y, axes.z * n.z).magnitude;
-                planes[i] = new Vector4(n.x, n.y, n.z, extent * Lerp(rng, minKeep, maxKeep));
-            }
-            return planes;
-        }
-
-        // Full treatment for a point given as a direction on the unit sphere:
-        // stretch onto the ellipsoid, displace, bed, then fracture.
-        public Vector3 ShapeFromDirection(Vector3 dir)
-        {
-            Vector3 p = new Vector3(dir.x * axes.x, dir.y * axes.y, dir.z * axes.z);
-
-            float r = 1f
-                    + broadAmp * Fbm(dir * broadFreq, 3, seed)
-                    + detailAmp * Fbm(dir * detailFreq, 2, seed + 401)
-                    + creaseAmp * (RidgedFbm(dir * creaseFreq, 3, seed + 907) - 0.55f);
-
-            p *= Mathf.Max(0.25f, r);
-            p += StrataPush(p, dir);
-            return Fracture(p);
-        }
-
-        // Treatment for a point on an arbitrary surface (swept cliff faces, cave
-        // shells): displace along the outward direction `outward`, bed by world
-        // height, then fracture relative to `pivot`.
-        public Vector3 Weather(Vector3 p, Vector3 outward, Vector3 pivot, float amount = 1f)
-        {
-            if (outward.sqrMagnitude < 1e-6f) outward = Vector3.up;
-            outward.Normalize();
-
-            float d = broadAmp * Fbm(p * broadFreq, 3, seed)
-                    + detailAmp * Fbm(p * detailFreq, 2, seed + 401)
-                    + creaseAmp * (RidgedFbm(p * creaseFreq, 3, seed + 907) - 0.55f);
-
-            Vector3 q = p + outward * (d * amount);
-            q += StrataPush(q, outward) * amount;
-
-            Vector3 local = q - pivot;
-            return pivot + Fracture(local);
-        }
-
-        // Alternating hard/soft sedimentary bands. Within a band the profile leans
-        // toward the bottom edge, so hard layers overhang the soft ones beneath —
-        // the little shadow line that makes stratified rock read at a glance.
-        public Vector3 StrataPush(Vector3 p, Vector3 outward)
-        {
-            if (strataAmp <= 0f || strataCount <= 0f) return Vector3.zero;
-
-            float h = Vector3.Dot(p, beddingUp) * strataCount;
-            float band = Mathf.Floor(h);
-            float f = h - band;
-
-            float hardness = Hash(Mathf.RoundToInt(band), 17, 3, seed) * 2f - 1f;
-            float lip = 0.35f + 0.65f * (1f - f); // juts most at the band's base
-            Vector3 lateral = new Vector3(outward.x, 0f, outward.z);
-            if (lateral.sqrMagnitude < 1e-6f) lateral = outward;
-            return lateral.normalized * (strataAmp * hardness * lip);
-        }
-
-        // Clips the point into every fracture half-space. Points outside a plane are
-        // projected onto it, so whole patches of the shape collapse into a single
-        // flat facet with a hard silhouette edge where the plane crosses the surface.
-        public Vector3 Fracture(Vector3 p)
-        {
-            if (fractures == null) return p;
-            for (int i = 0; i < fractures.Length; i++)
-            {
-                Vector3 n = new Vector3(fractures[i].x, fractures[i].y, fractures[i].z);
-                float over = Vector3.Dot(p, n) - fractures[i].w;
-                if (over > 0f) p -= n * over;
-            }
-            return p;
-        }
-
-        // Flattens whatever sits below `y` so a rock seats on the seabed instead of
-        // balancing on a point, and adds a small outward flare (buried talus).
-        public static Vector3 SeatBase(Vector3 p, float y, float flare)
-        {
-            if (p.y >= y) return p;
-            float under = y - p.y;
-            p.y = y - under * 0.15f;
-            Vector3 lateral = new Vector3(p.x, 0f, p.z);
-            if (lateral.sqrMagnitude > 1e-6f)
-                p += lateral.normalized * (flare * under);
-            return p;
-        }
-    }
 }
