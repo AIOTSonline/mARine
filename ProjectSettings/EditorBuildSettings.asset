@@ -5,37 +5,37 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/AuthScene.unity
     guid: 316d1c0b2bb76064d9384d95f709d670
   - enabled: 1
     path: Assets/Scenes/StartScene.unity
     guid: 7f0dc33bc140c1c449cf25b75ec5952c
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/StartScreenScene.unity
     guid: b993e70402c219049ad283c99c933b4e
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/QRScannerScene.unity
     guid: 856c4906e67765a4ba4c8a27113eef6d
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/CreateProjectScene.unity
     guid: 2abadc2cb29b2b14796c26cfe58e1fcd
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/TestScene2.unity
     guid: e188e9d556541b54c8a69a158bc9523c
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/PlacedActorListScene.unity
     guid: a7387ea049f67924c9f54edaaaaf062a
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/BehaviorScene.unity
     guid: 874e489f07464e64ca8b28228f99af8f
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/AddScriptsScene.unity
     guid: e197e9afbd776cf4caefe5e925d89772
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/ARPlacementScene.unity
     guid: ca99e8a77ea4fd946901f777f83c50f6
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/FaceARScene.unity
     guid: b74f81a770ca95a46b621b1a90041565
   - enabled: 1

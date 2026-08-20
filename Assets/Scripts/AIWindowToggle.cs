@@ -6,6 +6,10 @@ public class AIWindowToggle : MonoBehaviour
 
     public void ToggleAI()
     {
-        aiPanel.SetActive(!aiPanel.activeSelf);
+        bool willBeActive = !aiPanel.activeSelf;
+        aiPanel.SetActive(willBeActive);
+
+        if (willBeActive)
+            GetComponent<MarineDemoManager>()?.EnsureGeminiKeyLoaded();
     }
 }
