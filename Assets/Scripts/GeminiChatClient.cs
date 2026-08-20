@@ -15,13 +15,7 @@ public sealed class GeminiChatClient
 
     public string ApiKey
     {
-        get
-        {
-            if (!string.IsNullOrWhiteSpace(apiKey))
-                return apiKey;
-
-            return DotEnvLoader.Get("GEMINI_API_KEY");
-        }
+        get => apiKey;
         set => apiKey = value;
     }
 

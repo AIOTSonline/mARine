@@ -3653,6 +3653,7 @@ MonoBehaviour:
     for young children without adult supervision.\n\n\u2022 Be aware of your surroundings:
     Use caution and watch for real-world hazards (stairs, traffic, obstacles) while
     using AR."
+  checkingAnimDuration: 0.8
   forceResetOnPlay: 1
 --- !u!1 &478247965
 GameObject:

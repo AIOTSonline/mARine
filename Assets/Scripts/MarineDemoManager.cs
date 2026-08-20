@@ -83,6 +83,21 @@ public sealed class MarineDemoManager : MonoBehaviour
         }
     }
 
+    public void EnsureGeminiKeyLoaded()
+    {
+        if (!useGemini || gemini.HasApiKey)
+            return;
+
+        FetchGeminiKeyAsync().Forget();
+    }
+
+    private async UniTask FetchGeminiKeyAsync()
+    {
+        string firestoreKey = await GeminiKeyProvider.FetchFromFirestoreAsync();
+        if (!string.IsNullOrWhiteSpace(firestoreKey))
+            gemini.ApiKey = firestoreKey;
+    }
+
     private void WireUi()
     {
         if (languageDropdown != null)
