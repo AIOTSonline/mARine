@@ -11,6 +11,8 @@ Shader "Custom/StylizedWaterSurface"
         _WaveLength ("Wave Length (m)", Float) = 4.0
         _WaveSpeed ("Wave Speed", Float) = 0.8
 
+        [Enum(Caustic Interference,0,Ripple Web,1,Directional Streaks,2)]
+        _PatternStyle ("Light Pattern Style", Float) = 0
         _PatternScale ("Light Pattern Scale", Float) = 0.3
         _PatternIntensity ("Light Pattern Intensity", Range(0, 2)) = 0.7
         _PatternSpeed ("Light Pattern Speed", Float) = 0.5
@@ -42,6 +44,7 @@ Shader "Custom/StylizedWaterSurface"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "UnderwaterCommon.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _WaterColor;
@@ -49,6 +52,7 @@ Shader "Custom/StylizedWaterSurface"
                 float _WaveAmplitude;
                 float _WaveLength;
                 float _WaveSpeed;
+                float _PatternStyle;
                 float _PatternScale;
                 float _PatternIntensity;
                 float _PatternSpeed;
@@ -56,13 +60,6 @@ Shader "Custom/StylizedWaterSurface"
             CBUFFER_END
 
             // Globals driven by UnderwaterEnvironment.cs
-            half4 _UnderwaterFogColor;
-            half4 _UnderwaterColorSurface;
-            half4 _UnderwaterColorDeep;
-            half4 _UnderwaterSunGlow;
-            float _UnderwaterFogDensity;
-            float _UnderwaterFadeStart;
-            float _UnderwaterFadeEnd;
 
             struct Attributes
             {
@@ -97,29 +94,65 @@ Shader "Custom/StylizedWaterSurface"
                 return pow(abs(c), 8.0);
             }
 
-            float UnderwaterFog(float3 positionWS)
+            // Voronoi F2-F1 with slowly drifting cell centres.
+            float VoronoiEdge(float2 p, float time)
             {
-                float dist      = distance(positionWS, _WorldSpaceCameraPos);
-                float fadeEnd   = _UnderwaterFadeEnd > 0.01 ? _UnderwaterFadeEnd : 1e5;
-                float fadeStart = min(_UnderwaterFadeStart, fadeEnd - 0.01);
-                float expFog    = 1.0 - exp(-pow(dist * _UnderwaterFogDensity, 2.0));
-                return max(expFog, smoothstep(fadeStart, fadeEnd, dist));
+                float2 ip = floor(p);
+                float2 fp = p - ip;
+                float f1 = 8.0;
+                float f2 = 8.0;
+
+                for (int y = -1; y <= 1; y++)
+                {
+                    for (int x = -1; x <= 1; x++)
+                    {
+                        float2 g = float2(x, y);
+                        float  hx = UwHash21(ip + g);
+                        float  hy = UwHash21(ip + g + 17.3);
+                        float2 o = 0.5 + 0.45 * float2(sin(time + hx * TWO_PI),
+                                                       sin(time * 1.17 + hy * TWO_PI));
+                        float2 d = g + o - fp;
+                        float sq = dot(d, d);
+                        if (sq < f1) { f2 = f1; f1 = sq; }
+                        else         { f2 = min(f2, sq); }
+                    }
+                }
+                return sqrt(f2) - sqrt(f1);
             }
+
+            // Style 1 — ripple web. _PatternScale is tuned for the caustic field, where one unit
+            // is a fine filament;
+            half PatternRipple(float2 uv, float time)
+            {
+                float2 q = uv * 0.18;
+                float edge = VoronoiEdge(q, time * 0.5);
+                half  web  = 1.0 - smoothstep(0.0, 0.12, edge);
+                web *= 0.45 + 0.55 * UwValueNoise(q * 0.6 + float2(time * 0.08, 0.0));
+                return saturate(web * 1.25);
+            }
+
+            // Style 2 — directional streaks:
+            half PatternStreaks(float2 uv, float time)
+            {
+                float2 dir = normalize(_UnderwaterSurgeDir.xy + 1e-5);
+                float2 q = float2(dot(uv, dir) * 0.25,
+                                  dot(uv, float2(-dir.y, dir.x)) * 2.5);
+                half n = UwValueNoise(q + float2(time * 0.6, 0.0)) * 0.7
+                       + UwValueNoise(q * 2.3 + float2(time * 0.9, 4.1)) * 0.3;
+                return saturate(pow(n, 2.5) * 1.8);
+            }
+
+            // Branch on a material constant: uniform across the draw, so there is
+            // no wavefront divergence on mobile.
+            half SurfacePattern(float2 uv, float time)
+            {
+                if (_PatternStyle < 0.5)      return saturate(Caustics(uv, time));
+                else if (_PatternStyle < 1.5) return PatternRipple(uv, time);
+                else                          return PatternStreaks(uv, time);
+            }
+
 
             // Must stay identical to Custom/UnderwaterSkybox (see that file).
-            half3 UnderwaterBackground(float3 viewDir)
-            {
-                half3 col = lerp(_UnderwaterFogColor.rgb, _UnderwaterColorSurface.rgb,
-                                 smoothstep(0.0, 0.7, viewDir.y));
-                col = lerp(col, _UnderwaterColorDeep.rgb,
-                           smoothstep(0.0, 0.6, -viewDir.y));
-
-                float3 L = _MainLightPosition.xyz;
-                float sunAmount = saturate(dot(viewDir, L));
-                col += _UnderwaterSunGlow.rgb *
-                       (pow(sunAmount, 12.0) * 0.5 + pow(sunAmount, 90.0) * 0.8);
-                return col;
-            }
 
             Varyings vert(Attributes IN)
             {
@@ -156,8 +189,8 @@ Shader "Custom/StylizedWaterSurface"
                 half ndv     = abs(dot(N, V));
                 half fresnel = pow(1.0 - ndv, _FresnelPower);
 
-                half pattern = saturate(Caustics(IN.positionWS.xz * _PatternScale,
-                                                 _Time.y * _PatternSpeed));
+                half pattern = SurfacePattern(IN.positionWS.xz * _PatternScale,
+                                              _Time.y * _PatternSpeed);
 
                 Light mainLight = GetMainLight();
                 half3 color = _WaterColor.rgb * (0.6 + 0.4 * mainLight.color);
@@ -169,7 +202,7 @@ Shader "Custom/StylizedWaterSurface"
                 // Melt into the same view-dependent backdrop the skybox draws
                 // (alpha -> 1 so the horizon band is solid and seamless).
                 float fog = UnderwaterFog(IN.positionWS);
-                color = lerp(color, UnderwaterBackground(-V), fog);
+                color = ApplyUnderwaterMedium(color, IN.positionWS, V);
                 alpha = lerp(alpha, 1.0, fog);
 
                 return half4(color, alpha);

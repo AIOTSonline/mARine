@@ -7,8 +7,6 @@ namespace CreateEnv
 {
     // Reads/writes environments. Built-ins come from code (BuiltInProfiles); user
     // environments are one .json file each under persistentDataPath/environments/.
-    // Everything is passed through EnvironmentBounds.Clamp on the way in AND out,
-    // so a corrupt or hand-edited file can never reach the terrain un-clamped.
     public static class EnvironmentRepository
     {
         public static string UserDir =>
@@ -94,7 +92,7 @@ namespace CreateEnv
                 sb.Append(char.IsLetterOrDigit(c) ? c : '-');
             string slug = sb.ToString().Trim('-');
             if (slug.Length == 0) slug = "env";
-            // short unique suffix so two same-named envs don't collide
+            // Short unique suffix so two same-named envs don't collide.
             return slug + "-" + System.Guid.NewGuid().ToString("N").Substring(0, 6);
         }
     }

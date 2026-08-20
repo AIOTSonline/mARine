@@ -43,9 +43,7 @@ public class EndlessTerrain : MonoBehaviour
         if (autoStart) Initialize();
     }
 
-    // Idempotent streaming bootstrap. EnvironmentLoader calls this AFTER it has
-    // configured MapGenerator + assigned detailLevels, so chunks are never built
-    // from stale/default parameters. Safe to call more than once.
+    // Idempotent streaming bootstrap.
     public void Initialize()
     {
         if (_initialized) return;
@@ -57,16 +55,44 @@ public class EndlessTerrain : MonoBehaviour
         _chunkSize    = MapGenerator.mapChunkSize - 1;
         _chunksVisibleInViewDst = Mathf.RoundToInt(MaxViewDst / _chunkSize);
 
+        ClampDecoratorDistancesToLod0();
+
         float cullDst    = MaxViewDst * CullDistanceMultiplier;
         _sqrCullDistance = cullDst * cullDst;
 
         UpdateVisibleChunks();
     }
 
+    // Props are seated against the LOD0 collider, so decorators must stop before the
+    // distance where a coarser LOD takes over or they float.
+    void ClampDecoratorDistancesToLod0()
+    {
+        if (_decorators == null || detailLevels == null || detailLevels.Length == 0) return;
+
+        float lod0World = detailLevels[0].visibleDstThreshold * Scale;
+        float safe = lod0World * 0.9f;
+
+        for (int i = 0; i < _decorators.Length; i++)
+        {
+            ChunkDecorator d = _decorators[i];
+            if (d == null) continue;
+
+            float despawn = d.placementDistance + Mathf.Max(0.5f, d.placementHysteresis);
+            if (despawn <= safe) continue;
+
+            float hyst = Mathf.Min(Mathf.Max(0.5f, d.placementHysteresis), safe * 0.25f);
+            d.placementHysteresis = hyst;
+            d.placementDistance   = Mathf.Max(1f, safe - hyst);
+
+            Debug.Log($"[EndlessTerrain] '{d.GetType().Name}' props would have outlived LOD0 " +
+                      $"(despawn {despawn:0.#} m vs LOD0 {lod0World:0.#} m) and floated over the " +
+                      $"coarser mesh. Trimmed to spawn {d.placementDistance:0.#} m / " +
+                      $"despawn {d.placementDistance + hyst:0.#} m.", d);
+        }
+    }
+
     // View-distance presets (index 0 Near, 1 Medium, 2 Far). The last threshold is
     // the world-reach used by EnvironmentBounds invariant I-2 (fog hides the edge).
-    // Raw LOD tables are deliberately not user-editable — a bad table means missing
-    // colliders or a frame-rate cliff.
     public static LODInfo[] BuildViewDistance(int index)
     {
         switch (Mathf.Clamp(index, 0, 2))
@@ -130,9 +156,7 @@ public class EndlessTerrain : MonoBehaviour
     // Merges the legacy single-scatter slot and the extras into one list.
     ChunkDecorator[] CollectDecorators()
     {
-        // Safety net: if the Inspector reference was dropped (e.g. Unity can lose it
-        // when a component's base class changes on reimport), find the scatter in the
-        // scene so props still spawn instead of silently disappearing.
+        // Safety net: if the Inspector reference was dropped (e.g.
         if (detailScatter == null) detailScatter = FindFirstObjectByType<TerrainDetailScatter>();
 
         var list = new List<ChunkDecorator>();
@@ -281,6 +305,10 @@ public class EndlessTerrain : MonoBehaviour
 
             float worldDst = viewerDstScaled * Scale;
 
+            // Props may only exist while the chunk is drawing the same LOD0 mesh they were seated
+            // against;
+            bool atLod0 = _previousLODIndex == 0 && _meshCollider != null && _meshCollider.enabled;
+
             for (int i = 0; i < _decorators.Length; i++)
             {
                 ChunkDecorator decorator = _decorators[i];
@@ -291,7 +319,7 @@ public class EndlessTerrain : MonoBehaviour
 
                 if (!_detailsBuilt[i])
                 {
-                    if (worldDst <= spawnDst && _meshCollider != null && _meshCollider.enabled)
+                    if (atLod0 && worldDst <= spawnDst)
                     {
                         _detailsBuilt[i] = true; // latch even if the chunk is bare
                         Vector3 worldCentre = new Vector3(_position.x * Scale,
@@ -303,7 +331,7 @@ public class EndlessTerrain : MonoBehaviour
                             worldCentre, worldHalf, _meshCollider, _parent);
                     }
                 }
-                else if (worldDst > despawnDst)
+                else if (!atLod0 || worldDst > despawnDst)
                 {
                     if (_detailRoots[i] != null) { Object.Destroy(_detailRoots[i]); _detailRoots[i] = null; }
                     _detailsBuilt[i] = false;

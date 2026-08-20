@@ -2,13 +2,7 @@ using UnityEngine;
 
 namespace CreateEnv
 {
-    // The single guardrail. Every user-facing field has a Range here; Clamp()
-    // enforces all of them PLUS the cross-field invariants that individually-valid
-    // values can still violate. Clamp() runs on every load and every save, so even
-    // a hand-edited .json file cannot produce broken terrain.
-    //
-    // The UI reads these same Ranges to build its sliders, so the form literally
-    // cannot express an out-of-range value — Clamp() is the second line of defence.
+    // The single guardrail. Every user-facing field has a Range here;
     public static class EnvironmentBounds
     {
         public struct Range
@@ -58,6 +52,22 @@ namespace CreateEnv
         public static readonly Range MaxPropsPerChunk = new Range(0f, 300f, 240f, 10f);
         public static readonly Range WaterTint        = new Range(0f, 1f, 0.18f, 0.01f);
         public static readonly Range SpeciesDensity   = new Range(0f, 3f, 1f, 0.05f);
+
+        // ── Group 3b: Medium, surge, particulate ─────────────────────────────
+        public static readonly Range AbsorbTint     = new Range(0f, 4f, 0f, 0.05f);
+        public static readonly Range SurgeAmplitude = new Range(0f, 1f, 0f, 0.01f);
+        public static readonly Range SurgeSpeed     = new Range(0f, 3f, 0.55f, 0.05f);
+        public static readonly Range SnowCount      = new Range(0f, 4000f, 0f, 10f);
+        public static readonly Range SnowOpacity    = new Range(0f, 1f, 0.5f, 0.01f);
+        public static readonly Range SnowSize       = new Range(0.001f, 0.15f, 0.012f, 0.001f);
+        public static readonly Range SnowSpeed      = new Range(0f, 0.5f, 0.05f, 0.005f);
+        public static readonly Range EncrustAmount  = new Range(0f, 1f, 0f, 0.01f);
+        public static readonly Range EncrustScale   = new Range(0.1f, 8f, 1.6f, 0.1f);
+        public static readonly Range EncrustRelief  = new Range(0f, 1f, 0.85f, 0.01f);
+        public static readonly Range TurfAmount     = new Range(0f, 1f, 0f, 0.01f);
+        public static readonly Range TurfScale      = new Range(0.1f, 12f, 2.6f, 0.1f);
+        public static readonly Range TurfUpBias     = new Range(0f, 1f, 0.55f, 0.01f);
+        public static readonly Range TurfRelief     = new Range(0f, 1f, 0.7f, 0.01f);
 
         public const float TerrainScale = 0.25f; // EndlessTerrain.Scale — world size of a chunk unit
 
@@ -125,6 +135,45 @@ namespace CreateEnv
             if (p.speciesDensity == null) p.speciesDensity = new float[0];
             for (int i = 0; i < p.speciesDensity.Length; i++)
                 p.speciesDensity[i] = SpeciesDensity.Clamp(p.speciesDensity[i]);
+
+            // Group 3b
+            p.absorbTint     = AbsorbTint.Clamp(p.absorbTint);
+            p.surgeAmplitude = SurgeAmplitude.Clamp(p.surgeAmplitude);
+            p.surgeSpeed     = SurgeSpeed.Clamp(p.surgeSpeed);
+            p.snowCount      = SnowCount.ClampInt(p.snowCount);
+            p.snowOpacity    = SnowOpacity.Clamp(p.snowOpacity);
+            p.snowSizeMin    = SnowSize.Clamp(p.snowSizeMin);
+            p.snowSizeMax    = SnowSize.Clamp(p.snowSizeMax);
+            p.snowDrift      = SnowSpeed.Clamp(p.snowDrift);
+            p.snowSink       = SnowSpeed.Clamp(p.snowSink);
+            p.encrustAmount  = EncrustAmount.Clamp(p.encrustAmount);
+            p.encrustScale   = EncrustScale.Clamp(p.encrustScale);
+            p.encrustRelief  = EncrustRelief.Clamp(p.encrustRelief);
+            p.turfAmount     = TurfAmount.Clamp(p.turfAmount);
+            p.turfScale      = TurfScale.Clamp(p.turfScale);
+            p.turfUpBias     = TurfUpBias.Clamp(p.turfUpBias);
+            p.turfRelief     = TurfRelief.Clamp(p.turfRelief);
+
+            // Group 3d — time of day. -1 stays -1; anything else is a real index.
+            if (p.timeOfDay >= 0)
+                p.timeOfDay = Mathf.Clamp(p.timeOfDay, 0,
+                                          SimpleEnvironmentSettings.TimesOfDay.Length - 1);
+            p.sunElevation      = Mathf.Clamp(p.sunElevation, -10f, 90f);
+            p.sunAzimuth        = Mathf.Repeat(p.sunAzimuth, 360f);
+            p.sunLightIntensity = Mathf.Clamp(p.sunLightIntensity, 0f, 3f);
+
+            // Group 3c — surface styles.
+            p.terrainTextureStyle = Mathf.Clamp(p.terrainTextureStyle, 0,
+                                                TerrainTextureStyles.Names.Length - 1);
+            p.waterStyle          = Mathf.Clamp(p.waterStyle, 0,
+                                                WaterStyles.Names.Length - 1);
+
+            if (p.snowSizeMax < p.snowSizeMin) p.snowSizeMax = p.snowSizeMin;
+            if (Mathf.Abs(p.surgeDirX) < 1e-4f && Mathf.Abs(p.surgeDirZ) < 1e-4f)
+            {
+                p.surgeDirX = 1f;
+                p.surgeDirZ = 0f;
+            }
 
             // ── Cross-field invariants (re-derived, never trusted) ───────────
             float reach = ViewDistanceWorldReach(p.viewDistanceIndex);

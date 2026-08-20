@@ -1,9 +1,4 @@
-// URP bioluminescent prop shader (glow anemones, deep-biome accents): a dim
-// body plus a slow-pulsing emissive mask baked into vertex alpha (tentacle
-// tips glow, body barely). Each instance pulses out of phase using its world
-// position, so a field of anemones twinkles instead of blinking in unison.
-// Emission punches through the fog a little — a distant living glow in the
-// dark. Globals come from UnderwaterEnvironment.cs.
+// URP bioluminescent prop shader (glow anemones, deep-biome accents):
 Shader "Custom/UnderwaterGlow"
 {
     Properties
@@ -31,6 +26,7 @@ Shader "Custom/UnderwaterGlow"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "UnderwaterCommon.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _BaseColor;
@@ -42,13 +38,6 @@ Shader "Custom/UnderwaterGlow"
             CBUFFER_END
 
             // Globals driven by UnderwaterEnvironment.cs
-            half4 _UnderwaterFogColor;
-            half4 _UnderwaterColorSurface;
-            half4 _UnderwaterColorDeep;
-            half4 _UnderwaterSunGlow;
-            float _UnderwaterFogDensity;
-            float _UnderwaterFadeStart;
-            float _UnderwaterFadeEnd;
 
             struct Attributes
             {
@@ -65,29 +54,8 @@ Shader "Custom/UnderwaterGlow"
                 half4  color      : COLOR;
             };
 
-            float UnderwaterFog(float3 positionWS)
-            {
-                float dist      = distance(positionWS, _WorldSpaceCameraPos);
-                float fadeEnd   = _UnderwaterFadeEnd > 0.01 ? _UnderwaterFadeEnd : 1e5;
-                float fadeStart = min(_UnderwaterFadeStart, fadeEnd - 0.01);
-                float expFog    = 1.0 - exp(-pow(dist * _UnderwaterFogDensity, 2.0));
-                return max(expFog, smoothstep(fadeStart, fadeEnd, dist));
-            }
 
             // Must stay identical to Custom/UnderwaterSkybox (see that file).
-            half3 UnderwaterBackground(float3 viewDir)
-            {
-                half3 col = lerp(_UnderwaterFogColor.rgb, _UnderwaterColorSurface.rgb,
-                                 smoothstep(0.0, 0.7, viewDir.y));
-                col = lerp(col, _UnderwaterColorDeep.rgb,
-                           smoothstep(0.0, 0.6, -viewDir.y));
-
-                float3 L = _MainLightPosition.xyz;
-                float sunAmount = saturate(dot(viewDir, L));
-                col += _UnderwaterSunGlow.rgb *
-                       (pow(sunAmount, 12.0) * 0.5 + pow(sunAmount, 90.0) * 0.8);
-                return col;
-            }
 
             Varyings vert(Attributes IN)
             {
@@ -117,7 +85,7 @@ Shader "Custom/UnderwaterGlow"
                 half3 emission = _GlowColor.rgb * (_GlowIntensity * pulse * IN.color.a);
 
                 float fog = UnderwaterFog(IN.positionWS);
-                color = lerp(color, UnderwaterBackground(-V), fog);
+                color = ApplyUnderwaterMedium(color, IN.positionWS, V);
                 // Bioluminescence is its own light source: let a fraction of it
                 // survive the fog so distant glows still read in the dark.
                 color += emission * lerp(1.0, 1.0 - fog, 1.0 - _FogPunch);

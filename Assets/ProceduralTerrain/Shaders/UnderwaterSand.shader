@@ -38,6 +38,7 @@ Shader "Custom/UnderwaterSand"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "UnderwaterCommon.hlsl"
 
             TEXTURE2D(_BaseMap);   SAMPLER(sampler_BaseMap);
             TEXTURE2D(_NormalMap); SAMPLER(sampler_NormalMap);
@@ -58,16 +59,6 @@ Shader "Custom/UnderwaterSand"
                 float _SparkleIntensity;
             CBUFFER_END
 
-            // Globals driven by UnderwaterEnvironment.cs
-            half4 _UnderwaterFogColor;
-            half4 _UnderwaterColorSurface;
-            half4 _UnderwaterColorDeep;
-            half4 _UnderwaterSunGlow;
-            float _UnderwaterFogDensity;
-            float _UnderwaterFadeStart;
-            float _UnderwaterFadeEnd;
-            float _UnderwaterLevel;
-
             struct Attributes
             {
                 float4 positionOS : POSITION;
@@ -80,52 +71,6 @@ Shader "Custom/UnderwaterSand"
                 float3 positionWS : TEXCOORD0;
                 float3 normalWS   : TEXCOORD1;
             };
-
-            // Animated interference pattern approximating sunlight caustics.
-            half Caustics(float2 uv, float time)
-            {
-                const float sharpness = 0.005;
-                float2 p = fmod(uv, TWO_PI) - 250.0;
-                float2 i = p;
-                float  c = 1.0;
-
-                UNITY_UNROLL
-                for (int n = 0; n < 3; n++)
-                {
-                    float t = time * (1.0 - (3.5 / float(n + 1)));
-                    i = p + float2(cos(t - i.x) + sin(t + i.y),
-                                   sin(t - i.y) + cos(t + i.x));
-                    c += 1.0 / length(float2(p.x / (sin(i.x + t) / sharpness),
-                                             p.y / (cos(i.y + t) / sharpness)));
-                }
-                c = 1.17 - pow(c / 3.0, 1.4);
-                return pow(abs(c), 8.0);
-            }
-
-            float UnderwaterFog(float3 positionWS)
-            {
-                float dist     = distance(positionWS, _WorldSpaceCameraPos);
-                float fadeEnd  = _UnderwaterFadeEnd > 0.01 ? _UnderwaterFadeEnd : 1e5;
-                float fadeStart = min(_UnderwaterFadeStart, fadeEnd - 0.01);
-                float expFog   = 1.0 - exp(-pow(dist * _UnderwaterFogDensity, 2.0));
-                // smoothstep guarantees full fog before the last chunk ends
-                return max(expFog, smoothstep(fadeStart, fadeEnd, dist));
-            }
-
-            // View-dependent backdrop colour; must match Custom/UnderwaterSkybox.
-            half3 UnderwaterBackground(float3 viewDir)
-            {
-                half3 col = lerp(_UnderwaterFogColor.rgb, _UnderwaterColorSurface.rgb,
-                                 smoothstep(0.0, 0.7, viewDir.y));
-                col = lerp(col, _UnderwaterColorDeep.rgb,
-                           smoothstep(0.0, 0.6, -viewDir.y));
-
-                float3 L = _MainLightPosition.xyz;
-                float sunAmount = saturate(dot(viewDir, L));
-                col += _UnderwaterSunGlow.rgb *
-                       (pow(sunAmount, 12.0) * 0.5 + pow(sunAmount, 90.0) * 0.8);
-                return col;
-            }
 
             Varyings vert(Attributes IN)
             {
@@ -159,29 +104,23 @@ Shader "Custom/UnderwaterSand"
                 half3 lighting = mainLight.color * halfLambert + SampleSH(N);
                 half3 color = albedo * lighting;
 
-                // Caustics with a subtle chromatic split (two phase-shifted samples).
                 float2 cuv = IN.positionWS.xz * _CausticsScale;
                 float  ct  = _Time.y * _CausticsSpeed;
-                half cA = saturate(Caustics(cuv, ct));
-                half cB = saturate(Caustics(cuv + 0.04 * _CausticsChroma, ct + 0.05));
-                half3 caustic = half3(cA, 0.5 * (cA + cB), cB);
+                half3 caustic = UnderwaterCausticsRGB(cuv, ct, _CausticsChroma * 8.0);
                 color += _CausticsColor.rgb * mainLight.color *
                          (caustic * _CausticsIntensity * saturate(Ngeo.y));
 
-                // Tiny specular glints riding on the caustic highlights — wet sand.
                 float3 V = normalize(_WorldSpaceCameraPos - IN.positionWS);
                 half3 H = normalize(mainLight.direction + V);
                 half spec = pow(saturate(dot(N, H)), 48.0);
-                color += mainLight.color * (spec * _SparkleIntensity * (0.3 + cA));
+                color += mainLight.color * (spec * _SparkleIntensity * (0.3 + caustic.g));
 
-                // Lower sand shifts toward the deep water colour.
                 float depthBelow = saturate((_UnderwaterLevel - IN.positionWS.y) /
                                             max(_DepthTintRange, 0.01));
                 color = lerp(color, color * _DeepColor.rgb * 1.6,
                              depthBelow * _DepthTintStrength);
 
-                // Fade into the same view-dependent backdrop the skybox draws.
-                color = lerp(color, UnderwaterBackground(-V), UnderwaterFog(IN.positionWS));
+                color = ApplyUnderwaterMedium(color, IN.positionWS, V);
                 return half4(color, 1);
             }
             ENDHLSL

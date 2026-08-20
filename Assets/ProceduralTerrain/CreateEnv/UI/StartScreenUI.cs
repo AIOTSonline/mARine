@@ -2,12 +2,7 @@ using UnityEngine;
 
 namespace CreateEnv.UI
 {
-    // The CustomEnvBuilder scene is JUST the environment settings editor — there is
-    // no "Choose an Environment" list. It is reached from FreeExploreConfig in one of
-    // two ways: "New Environment" opens a blank form, and "Edit" (available on
-    // user-made environments) sets EnvironmentSession.EditRequestId first so the form
-    // opens pre-filled. Save writes the profile to EnvironmentRepository; both Save
-    // and Cancel return to FreeExploreConfig, where environments are played.
+    // CustomEnvBuilder is just the settings editor; there is no environment list here.
     public class StartScreenUI : MonoBehaviour
     {
         [Header("Wiring")]

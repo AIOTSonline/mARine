@@ -2,14 +2,7 @@ using UnityEngine;
 
 namespace CreateEnv
 {
-    // The "locked" life presets. Each pack is a hand-authored set of scatter rules
-    // (with real coral/kelp prefabs) that the user chooses by name — they never edit
-    // prefab arrays directly, which is what prevents empty or overpacked worlds.
-    //
-    // Author this once in the Editor and drop it in a Resources folder as
-    // "LifePackLibrary" so both the editor UI and the Explore loader can find it.
-    // Convention: index 0 should be an empty "None" pack. If the asset is missing,
-    // the loader gracefully keeps whatever TerrainDetailScatter is already in the scene.
+    // The "locked" life presets.
     [CreateAssetMenu(menuName = "CreateEnv/Life Pack Library", fileName = "LifePackLibrary")]
     public class LifePackLibrary : ScriptableObject
     {

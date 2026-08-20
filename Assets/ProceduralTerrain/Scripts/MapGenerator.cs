@@ -74,10 +74,7 @@ public class MapGenerator : MonoBehaviour
     }
 
     // ── Create-Env: apply a data profile (called once by EnvironmentLoader) ──
-    // Writes every terrain-shape field from the profile. The height curve and the
-    // TerrainShaper preset come from BiomeStyles (locked per style), so a user can
-    // never supply a curve/shaper combination that produces NaN or inverted terrain.
-    // normalizeMode is forced to Global — Local mode breaks chunk-seam matching.
+    // Writes every terrain-shape field from the profile.
     public void ApplyProfile(EnvironmentProfile p)
     {
         if (p == null) return;

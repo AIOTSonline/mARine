@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: RockReef
-  m_Shader: {fileID: 4800000, guid: 0d48781a7be9430bb1922e4819b7c5b8, type: 3}
+  m_Name: Seagrass
+  m_Shader: {fileID: 4800000, guid: da5e1379262e467c9a3b6e5721a1b688, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -25,15 +25,12 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _StrataScale: 2.2
-    - _StrataStrength: 0.25
-    - _CausticsIntensity: 0.8
-    - _CausticsScale: 0.6
-    - _CausticsSpeed: 0.4
-    - _RimStrength: 0.55
+    - _Translucency: 1
+    - _SwayAmplitude: 0.07
+    - _SwaySpeed: 1.15
+    - _SwayWavelength: 3.2
+    - _FlutterStrength: 0.55
     m_Colors:
-    - _ColorLow: {r: 0.17, g: 0.13, b: 0.15, a: 1}
-    - _ColorHigh: {r: 0.55, g: 0.49, b: 0.4, a: 1}
-    - _CausticsColor: {r: 0.9, g: 1, b: 0.9, a: 1}
-    - _RimColor: {r: 0.35, g: 0.8, b: 0.85, a: 1}
+    - _RootColor: {r: 0.045, g: 0.13, b: 0.07, a: 1}
+    - _TipColor: {r: 0.34, g: 0.68, b: 0.26, a: 1}
   m_BuildTextureStacks: []

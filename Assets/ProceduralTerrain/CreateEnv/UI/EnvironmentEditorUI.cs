@@ -6,12 +6,7 @@ using UnityEngine.UI;
 
 namespace CreateEnv.UI
 {
-    // Create/Edit form. Thin: it instantiates styled ROW PREFABS (built by the Editor
-    // generator) into a scroll container and binds them to the profile's friendly
-    // layer (SimpleEnvironmentSettings) — a handful of dropdowns and 0..1 sliders,
-    // no technical knobs. Every change runs SimpleEnvironmentMapper.Apply, which
-    // derives the technical fields and clamps them, so the form cannot express a
-    // broken environment; Save clamps once more on the way to disk.
+    // Create/Edit form. Thin:
     public class EnvironmentEditorUI : MonoBehaviour
     {
         [Header("Wiring (set by the Editor generator)")]
@@ -125,6 +120,8 @@ namespace CreateEnv.UI
             Dropdown("Seafloor profile", SimpleEnvironmentSettings.SeafloorProfiles,
                      s.seafloorProfile, v => { s.seafloorProfile = v; Edited(); });
             Slider("Terrain complexity", s.terrainComplexity, v => { s.terrainComplexity = v; Edited(); });
+            Dropdown("Seafloor surface", SimpleEnvironmentSettings.SeafloorSurfaces,
+                     s.seafloorSurface, v => { s.seafloorSurface = v; Edited(); });
 
             Header("Habitat");
             Dropdown("Marine habitat", SimpleEnvironmentSettings.MarineHabitats,
@@ -132,14 +129,43 @@ namespace CreateEnv.UI
             Slider("Habitat density", s.habitatDensity, v => { s.habitatDensity = v; Edited(); });
 
             Header("Water");
+            Dropdown("Water model", SimpleEnvironmentSettings.WaterModels,
+                     s.waterModel, v => { s.waterModel = v; Edited(); });
+
+            if (s.waterModel == 1)
+            {
+                Dropdown("Water colour", SimpleEnvironmentSettings.WaterColours,
+                         s.waterColour, v => { s.waterColour = v; Edited(); });
+            }
+            else
+            {
+                int wt = s.ResolvedWaterType();
+                Dropdown("Water type", OceanModel.WaterTypeNames, wt,
+                         v => { s.waterType = v; Edited(); });
+                Note($"visibility ≈ {OceanModel.VisibilityMetres(wt):0.#} m");
+            }
+
             Slider("Water clarity", s.waterClarity, v => { s.waterClarity = v; Edited(); });
-            Dropdown("Water colour", SimpleEnvironmentSettings.WaterColours,
-                     s.waterColour, v => { s.waterColour = v; Edited(); });
+
+            Header("Time of day");
+            Dropdown("Time of day", SimpleEnvironmentSettings.TimesOfDay,
+                     s.timeOfDay, v => { s.timeOfDay = v; Edited(); });
+            if (s.timeOfDay == 3)
+                Note("Moonlight only — the reef goes dark beyond a few metres.");
 
             Header("Exploration");
             Dropdown("Exploration area", SimpleEnvironmentSettings.ExplorationAreas,
                      s.explorationArea, v => { s.explorationArea = v; Edited(); });
-            Slider("Visibility", s.visibility, v => { s.visibility = v; Edited(); });
+
+            // Advanced: real controls, but ones with a sensible default that most environments
+            // never need to touch.
+            Header("Advanced settings");
+            RangedSlider("Site depth", s.siteDepthMeters, 1f, 45f,
+                         v => $"{v:0} m", v => { s.siteDepthMeters = v; Edited(); });
+            if (s.waterModel != 1)
+                Note($"daylight at depth ≈ {OceanModel.LightAtDepth(s.ResolvedWaterType(), s.siteDepthMeters) * 100f:0}%");
+            Dropdown("Water movement", SimpleEnvironmentSettings.WaterMovements,
+                     s.waterMovement, v => { s.waterMovement = v; Edited(); });
 
             // Living Ecosystem, appended below the existing sections (Design Doc §5).
             // Built from these same row prefabs, so it inherits this form's styling.
@@ -156,6 +182,15 @@ namespace CreateEnv.UI
         }
 
         // ── row builders (instantiate the styled prefabs, then bind) ─────────
+        // Read-only derived value, shown under the control that produces it, so the builder
+        // can see what the physics made of their choice instead of having to guess what
+        void Note(string text)
+        {
+            if (headerRowPrefab == null) return;
+            var row = Instantiate(headerRowPrefab, formContainer);
+            Set(row, "Label", "    " + text);
+        }
+
         void Header(string text)
         {
             var row = Instantiate(headerRowPrefab, formContainer);
@@ -174,6 +209,26 @@ namespace CreateEnv.UI
             if (valueText != null) valueText.text = Percent(value);
             slider.onValueChanged.RemoveAllListeners();
             slider.onValueChanged.AddListener(v => { if (valueText != null) valueText.text = Percent(v); set(v); });
+        }
+
+        // Like Slider, but in real units.
+        void RangedSlider(string cap, float value, float min, float max,
+                          Func<float, string> format, Action<float> set)
+        {
+            var row = Instantiate(sliderRowPrefab, formContainer);
+            Set(row, "Label", cap);
+            var valueText = Find<TMP_Text>(row, "Value");
+            var slider = Find<UnityEngine.UI.Slider>(row, "Slider");
+            if (slider == null) return;
+            slider.minValue = min; slider.maxValue = max; slider.wholeNumbers = false;
+            slider.SetValueWithoutNotify(Mathf.Clamp(value, min, max));
+            if (valueText != null) valueText.text = format(value);
+            slider.onValueChanged.RemoveAllListeners();
+            slider.onValueChanged.AddListener(v =>
+            {
+                if (valueText != null) valueText.text = format(v);
+                set(v);
+            });
         }
 
         void Dropdown(string cap, string[] options, int value, Action<int> onChange)

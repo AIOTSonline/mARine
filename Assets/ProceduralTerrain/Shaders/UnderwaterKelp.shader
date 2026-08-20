@@ -1,7 +1,4 @@
-// URP kelp/seagrass ribbon shader: vertex-shader current sway (weighted by
-// uv.y so roots stay planted), root→tip colour ramp, translucent backlight
-// when the sun shines through a blade, shared underwater fog. Two-sided.
-// Globals come from UnderwaterEnvironment.cs.
+// URP kelp/seagrass ribbon shader:
 Shader "Custom/UnderwaterKelp"
 {
     Properties
@@ -33,6 +30,7 @@ Shader "Custom/UnderwaterKelp"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "UnderwaterCommon.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _RootColor;
@@ -45,13 +43,6 @@ Shader "Custom/UnderwaterKelp"
             CBUFFER_END
 
             // Globals driven by UnderwaterEnvironment.cs
-            half4 _UnderwaterFogColor;
-            half4 _UnderwaterColorSurface;
-            half4 _UnderwaterColorDeep;
-            half4 _UnderwaterSunGlow;
-            float _UnderwaterFogDensity;
-            float _UnderwaterFadeStart;
-            float _UnderwaterFadeEnd;
 
             struct Attributes
             {
@@ -92,29 +83,8 @@ Shader "Custom/UnderwaterKelp"
                 return posWS;
             }
 
-            float UnderwaterFog(float3 positionWS)
-            {
-                float dist      = distance(positionWS, _WorldSpaceCameraPos);
-                float fadeEnd   = _UnderwaterFadeEnd > 0.01 ? _UnderwaterFadeEnd : 1e5;
-                float fadeStart = min(_UnderwaterFadeStart, fadeEnd - 0.01);
-                float expFog    = 1.0 - exp(-pow(dist * _UnderwaterFogDensity, 2.0));
-                return max(expFog, smoothstep(fadeStart, fadeEnd, dist));
-            }
 
             // Must stay identical to Custom/UnderwaterSkybox (see that file).
-            half3 UnderwaterBackground(float3 viewDir)
-            {
-                half3 col = lerp(_UnderwaterFogColor.rgb, _UnderwaterColorSurface.rgb,
-                                 smoothstep(0.0, 0.7, viewDir.y));
-                col = lerp(col, _UnderwaterColorDeep.rgb,
-                           smoothstep(0.0, 0.6, -viewDir.y));
-
-                float3 L = _MainLightPosition.xyz;
-                float sunAmount = saturate(dot(viewDir, L));
-                col += _UnderwaterSunGlow.rgb *
-                       (pow(sunAmount, 12.0) * 0.5 + pow(sunAmount, 90.0) * 0.8);
-                return col;
-            }
 
             Varyings vert(Attributes IN)
             {
@@ -147,7 +117,7 @@ Shader "Custom/UnderwaterKelp"
                 color += _TipColor.rgb * mainLight.color *
                          (back * _Translucency * IN.uv.y);
 
-                color = lerp(color, UnderwaterBackground(-V), UnderwaterFog(IN.positionWS));
+                color = ApplyUnderwaterMedium(color, IN.positionWS, V);
                 return half4(color, 1);
             }
             ENDHLSL

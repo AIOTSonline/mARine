@@ -2,11 +2,8 @@ using UnityEngine;
 
 namespace CreateEnv
 {
-    // The single bridge between the friendly layer (SimpleEnvironmentSettings) and
-    // the technical layer (EnvironmentProfile). The editor UI edits profile.simple
-    // and calls Apply(); everything downstream — EnvironmentBounds.Clamp,
-    // EnvironmentRepository, EnvironmentLoader — is unchanged and still enforces
-    // every cap and cross-field invariant on the derived technical values.
+    // The single bridge between the friendly layer (SimpleEnvironmentSettings) and the
+    // technical layer (EnvironmentProfile).
     public static class SimpleEnvironmentMapper
     {
         public static void Apply(EnvironmentProfile p)
@@ -18,15 +15,15 @@ namespace CreateEnv
             ApplySeafloor(p, s);
             ApplyHabitat(p, s);
             ApplyWater(p, s);
+            ApplyTimeOfDay(p, s);
             ApplyExploration(p, s);
+            ApplySurfaces(p, s);
 
             EnvironmentBounds.Clamp(p);
         }
 
         // ── 1. Seafloor ──────────────────────────────────────────────────────
-        // Each profile is a hand-tuned recipe over the terrain-shape and biome-style
-        // fields; waterLevel comes with it so invariant I-3 (peaks stay submerged)
-        // holds for every recipe. Complexity layers fractal detail on top.
+        // Each profile is a hand-tuned recipe over the terrain-shape and biome-style fields;
         static void ApplySeafloor(EnvironmentProfile p, SimpleEnvironmentSettings s)
         {
             switch (s.seafloorProfile)
@@ -84,17 +81,93 @@ namespace CreateEnv
             float d = s.habitatDensity;
             p.lifeDensity      = Mathf.Lerp(0.3f, 1.8f, d);
             p.maxPropsPerChunk = Mathf.RoundToInt(Mathf.Lerp(80f, 300f, d));
+
+            // What grows on the rock comes from the ocean model, because it is not an art choice:
+            var benthos = OceanModel.BenthosAt(s.ResolvedWaterType(), s.siteDepthMeters,
+                                               s.marineHabitat, d);
+            p.encrustAmount = benthos.coverage;
+            p.encrustScale  = 1.6f;
+            p.encrustColorA = benthos.colorA;
+            p.encrustColorB = benthos.colorB;
+            p.encrustColorC = benthos.colorC;
+            p.encrustRelief = benthos.relief;
+
+            p.turfAmount   = benthos.turf;
+            p.turfColor    = benthos.turfBase;
+            p.turfTipColor = benthos.turfTip;
+            p.turfScale    = 2.6f;
+            p.turfUpBias   = 0.55f;
+            p.turfRelief   = 0.7f;
         }
 
         // ── 3. Water ─────────────────────────────────────────────────────────
         static void ApplyWater(EnvironmentProfile p, SimpleEnvironmentSettings s)
         {
-            // Clarity is how thick the water reads: fog density plus how much light
-            // survives. (Visibility, under Exploration, is how FAR you can see.)
+            // Two models, user's choice. Both write the same technical fields.
+            if (s.waterModel == 1) { ApplyWaterClassic(p, s); return; }
+
+            // Water is derived, not picked. The Jerlov optical type fixes the attenuation
+            // spectrum;
+            int   type    = s.ResolvedWaterType();
+            float clarity = s.waterClarity;
+            float depth   = s.siteDepthMeters;
+
+            float density = OceanModel.FogDensityFor(type);
+            // +-25% within the type, murky end thicker.
+            p.fogDensity = density * Mathf.Lerp(1.25f, 0.75f, clarity);
+            p.absorbTint = OceanModel.AbsorbTintFor(type);
+
+            // Brightness follows the light that actually reaches this depth.
+            float light = OceanModel.LightAtDepth(type, depth);
+            p.sunGlowIntensity = Mathf.Lerp(0.35f, 1.35f, Mathf.Sqrt(light));
+            p.ambientIntensity = Mathf.Lerp(0.45f, 1.25f, Mathf.Sqrt(light));
+
+            // Turbidity is suspended particulate, so marine snow tracks the water
+            // type directly rather than being dialled separately.
+            float turbid = Mathf.InverseLerp(0.02f, 0.80f, density);
+            p.snowCount   = Mathf.RoundToInt(Mathf.Lerp(250f, 1100f, turbid));
+            p.snowOpacity = Mathf.Lerp(0.30f, 0.62f, turbid);
+            p.snowDrift   = 0.05f;
+            p.snowSink    = 0.03f;
+
+            p.surgeAmplitude = 0.05f;
+            p.surgeSpeed     = 0.55f;
+            p.surgeDirX      = 1f;
+            p.surgeDirZ      = 0.35f;
+
+            // Colour of the medium: whatever survives the path, at three path lengths.
+            float vis = OceanModel.VisibilityMetres(type);
+            Color medium  = OceanModel.WaterColour(type, vis * 0.30f, 0.62f);
+            Color deep    = OceanModel.WaterColour(type, vis * 0.85f, 0.24f);
+            Color surface = OceanModel.WaterColour(type, vis * 0.10f, 0.88f);
+
+            // Sun glow is the near-surface end of the same ramp, warmed slightly:
+            // the shaft you are looking up into has travelled the least water.
+            Color sun = OceanModel.WaterColour(type, vis * 0.04f, 1f);
+            sun = Color.Lerp(sun, Color.white, 0.55f);
+
+            SetColours(p, medium, surface, deep, sun);
+        }
+
+        // The original hand-tuned mapping: clarity does the work of the optical model
+        // and colour is a straight palette pick. Physically arbitrary, but authored.
+        static void ApplyWaterClassic(EnvironmentProfile p, SimpleEnvironmentSettings s)
+        {
             float clarity = s.waterClarity;
             p.fogDensity       = Mathf.Lerp(0.11f, 0.03f, clarity);
             p.sunGlowIntensity = Mathf.Lerp(0.7f, 1.3f, clarity);
             p.ambientIntensity = Mathf.Lerp(0.8f, 1.2f, clarity);
+
+            p.absorbTint  = Mathf.Lerp(2.6f, 1.3f, clarity);
+            p.snowCount   = Mathf.RoundToInt(Mathf.Lerp(900f, 400f, clarity));
+            p.snowOpacity = Mathf.Lerp(0.58f, 0.34f, clarity);
+            p.snowDrift   = 0.05f;
+            p.snowSink    = 0.03f;
+
+            p.surgeAmplitude = 0.05f;
+            p.surgeSpeed     = 0.55f;
+            p.surgeDirX      = 1f;
+            p.surgeDirZ      = 0.35f;
 
             switch (s.waterColour)
             {
@@ -124,15 +197,85 @@ namespace CreateEnv
             p.deepColor = deep;   p.sunGlowColor = sun;
         }
 
+        // ── 5. Surface styles ────────────────────────────────────────────────
+        // A straight pass-through, unlike every other mapping here. These two are genuinely
+        // independent aesthetic choices:
+        static void ApplySurfaces(EnvironmentProfile p, SimpleEnvironmentSettings s)
+        {
+            p.terrainTextureStyle = s.seafloorSurface;
+            p.waterStyle          = s.waterMovement;
+        }
+
+        // ── 3d. Time of day ──────────────────────────────────────────────────
+        // Runs AFTER ApplyWater, because it scales the colours that produced. Underwater, time
+        // of day is not a tint — it is how much light gets in at all.
+        static void ApplyTimeOfDay(EnvironmentProfile p, SimpleEnvironmentSettings s)
+        {
+            p.timeOfDay = s.timeOfDay;
+
+            float lightScale;
+            switch (s.timeOfDay)
+            {
+                case 0: // Sunrise — low and warm, long shafts through the surface
+                    p.sunElevation = 8f;   p.sunAzimuth = 90f;
+                    p.sunLightColor = new Color(1f, 0.72f, 0.45f, 1f);
+                    p.sunLightIntensity = 0.75f;
+                    p.ambientIntensity  = 0.65f;
+                    p.sunGlowIntensity  = 1.25f;
+                    lightScale = 0.80f;
+                    break;
+
+                case 2: // Sunset — lower and redder still
+                    p.sunElevation = 6f;   p.sunAzimuth = 280f;
+                    p.sunLightColor = new Color(1f, 0.55f, 0.32f, 1f);
+                    p.sunLightIntensity = 0.65f;
+                    p.ambientIntensity  = 0.55f;
+                    p.sunGlowIntensity  = 1.35f;
+                    lightScale = 0.68f;
+                    break;
+
+                case 3: // Night — moonlight only. Deliberately dark: this is the one
+                        // setting where the reef stops being readable at distance.
+                    p.sunElevation = 25f;  p.sunAzimuth = 20f;
+                    p.sunLightColor = new Color(0.55f, 0.68f, 1f, 1f);
+                    p.sunLightIntensity = 0.18f;
+                    p.ambientIntensity  = 0.22f;
+                    p.sunGlowIntensity  = 0.15f;
+                    lightScale = 0.30f;
+                    break;
+
+                default: // 1: Afternoon — sun high, near-white, the brightest case
+                    p.sunElevation = 70f;  p.sunAzimuth = 200f;
+                    p.sunLightColor = new Color(1f, 0.98f, 0.92f, 1f);
+                    p.sunLightIntensity = 1.2f;
+                    p.ambientIntensity  = 1f;
+                    p.sunGlowIntensity  = 0.9f;
+                    lightScale = 1f;
+                    break;
+            }
+
+            // Scale the medium itself, not just the lights: at night the water is not
+            // a lit blue with the lamps turned down, it is nearly black.
+            if (lightScale < 0.999f)
+            {
+                p.waterColor        = Dim(p.waterColor, lightScale);
+                p.deepColor         = Dim(p.deepColor, lightScale * 0.85f);
+                p.surfaceGlowColor  = Dim(p.surfaceGlowColor, lightScale);
+                p.sunGlowColor      = Dim(p.sunGlowColor, lightScale);
+            }
+        }
+
+        static Color Dim(Color c, float k) => new Color(c.r * k, c.g * k, c.b * k, 1f);
+
         // ── 4. Exploration ───────────────────────────────────────────────────
         static void ApplyExploration(EnvironmentProfile p, SimpleEnvironmentSettings s)
         {
             p.viewDistanceIndex = s.explorationArea; // Small/Medium/Large = Near/Medium/Far
 
-            // How far you can see before the fog closes in. EnvironmentBounds.Clamp
-            // still trims these against the streaming reach (invariants I-1/I-2).
-            p.fadeStart = Mathf.Lerp(8f, 26f, s.visibility);
-            p.fadeEnd   = Mathf.Lerp(14f, 44f, s.visibility);
+            // The fog band follows the streaming reach rather than being set apart from it:
+            float reach = EnvironmentBounds.ViewDistanceWorldReach(s.explorationArea);
+            p.fadeEnd   = reach * 0.85f;
+            p.fadeStart = p.fadeEnd * 0.55f;
         }
     }
 }

@@ -6,11 +6,6 @@ using UnityEngine.XR.ARSubsystems;
 
 /// <summary>
 /// Minimal AR "scan the floor → tap a plane → spawn the procedural terrain" placer.
-///
-/// Put this on the XR Origin (AR Rig) alongside ARRaycastManager / ARPlaneManager / ARAnchorManager.
-/// It has NO dependency on the app's goal / tutorial / layer / educational systems — it just
-/// anchors the terrain prefab to wherever you tap. That's the whole "AR scan part", nothing else.
-/// </summary>
 [RequireComponent(typeof(ARRaycastManager))]
 public class EndlessTerrainPlacer : MonoBehaviour
 {

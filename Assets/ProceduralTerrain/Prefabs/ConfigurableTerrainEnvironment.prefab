@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 1730000002}
   - component: {fileID: 1730000052}
   - component: {fileID: 1730000060}
+  - component: {fileID: 1885346157}
   m_Layer: 0
   m_Name: ConfigurableTerrainEnvironment
   m_TagString: Untagged
@@ -271,7 +272,7 @@ MonoBehaviour:
     randomTilt: 10
     embed: 0.05
     showOnMinimap: 1
-    minimapColor: {r: 0.5, g: 1, b: 0.65, a: 1}
+    minimapColor: {r: 0.55, g: 0.95, b: 0.55, a: 1}
     countRange: {x: 4, y: 8}
     radius: 0.8
     radiusJitter: 0.3
@@ -295,7 +296,7 @@ MonoBehaviour:
     randomTilt: 8
     embed: 0.06
     showOnMinimap: 1
-    minimapColor: {r: 0.5, g: 1, b: 0.65, a: 1}
+    minimapColor: {r: 1.0, g: 0.55, b: 0.65, a: 1}
     countRange: {x: 10, y: 18}
     radius: 1.6
     radiusJitter: 0.3
@@ -460,3 +461,97 @@ MonoBehaviour:
   scatter: {fileID: 1730000015}
   endlessTerrain: {fileID: 1730000013}
   fallbackBuiltInIndex: 0
+--- !u!114 &1885346157
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1730000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: efb5aa2f1bbc40238f2d8243cab3d289, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ProceduralFeatureScatter
+  placementDistance: 13
+  placementHysteresis: 2
+  seed: 8112
+  castShadows: 0
+  maxPropsPerChunk: 90
+  rules:
+  - name: Kelp grove
+    enabled: 1
+    kind: 5
+    material: {fileID: 2100000, guid: 5bbe6525b1c54de19587219bd03441f7, type: 2}
+    variants: 6
+    densityPerChunk: 11
+    useMask: 1
+    maskScale: 0.05
+    maskThreshold: 0.42
+    minSlope: 0
+    maxSlope: 32
+    heightRange: {x: -1000, y: 1000}
+    sizeMeters: {x: 1.3, y: 2.6}
+    alignToNormal: 0.15
+    randomTilt: 5
+    embed: 0.04
+    addCollider: 0
+    showOnMinimap: 1
+    minimapColor: {r: 0.25, g: 0.75, b: 0.45, a: 1}
+  - name: Seagrass bed
+    enabled: 1
+    kind: 9
+    material: {fileID: 2100000, guid: 079234cbbeb943feb9b9ccd921bda523, type: 2}
+    variants: 6
+    densityPerChunk: 24
+    useMask: 1
+    maskScale: 0.035
+    maskThreshold: 0.3
+    minSlope: 0
+    maxSlope: 38
+    heightRange: {x: -1000, y: 1000}
+    sizeMeters: {x: 0.4, y: 0.9}
+    alignToNormal: 0.2
+    randomTilt: 4
+    embed: 0.05
+    addCollider: 0
+    showOnMinimap: 1
+    minimapColor: {r: 0.7, g: 0.95, b: 0.4, a: 1}
+  - name: Anemone patch
+    enabled: 1
+    kind: 6
+    material: {fileID: 2100000, guid: 2c124abfc2cd454ab21b6c1f1e3d77ce, type: 2}
+    variants: 5
+    densityPerChunk: 7
+    useMask: 1
+    maskScale: 0.06
+    maskThreshold: 0.45
+    minSlope: 0
+    maxSlope: 45
+    heightRange: {x: -1000, y: 1000}
+    sizeMeters: {x: 0.15, y: 0.4}
+    alignToNormal: 0.5
+    randomTilt: 8
+    embed: 0.1
+    addCollider: 0
+    showOnMinimap: 1
+    minimapColor: {r: 0.35, g: 0.9, b: 0.95, a: 1}
+  - name: Sea fans
+    enabled: 1
+    kind: 7
+    material: {fileID: 2100000, guid: 60166f38cabb42f2b0af8aff073a6f11, type: 2}
+    variants: 6
+    densityPerChunk: 2.5
+    useMask: 0
+    maskScale: 0.05
+    maskThreshold: 0.5
+    minSlope: 0
+    maxSlope: 55
+    heightRange: {x: -1000, y: 1000}
+    sizeMeters: {x: 0.7, y: 1.6}
+    alignToNormal: 0.3
+    randomTilt: 10
+    embed: 0.05
+    addCollider: 0
+    showOnMinimap: 1
+    minimapColor: {r: 0.85, g: 0.55, b: 1.0, a: 1}

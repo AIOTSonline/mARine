@@ -2,13 +2,7 @@ using UnityEngine;
 
 namespace CreateEnv
 {
-    // Lives on one GameObject in the Explore scene. On Start it takes the selected
-    // profile, clamps it once more (defence in depth), and pushes every value into
-    // the five terrain systems in the correct order — MapGenerator first, streaming
-    // LAST — so chunks are never generated from stale/default parameters.
-    //
-    // This is the ONLY place configuration is applied, and it runs once. There is no
-    // per-frame cost: after Start, the terrain behaves exactly like a hand-authored scene.
+    // Lives on one GameObject in the Explore scene.
     public class EnvironmentLoader : MonoBehaviour
     {
         [Header("Optional explicit refs (auto-found if left empty)")]
@@ -17,6 +11,10 @@ namespace CreateEnv
         public WaterSurface          water;
         public TerrainDetailScatter  scatter;
         public EndlessTerrain        endlessTerrain;
+        public MarineSnow            snow;
+        [Tooltip("Rock/feature scatters. Left empty, every one in the scene is found and " +
+                 "given the profile's encrusting growth.")]
+        public ProceduralFeatureScatter[] featureScatters;
 
         [Tooltip("Used only when Explore is entered directly (no StartScreen). " +
                  "0 = Sample, 1 = Canyon, 2 = Kelp.")]
@@ -64,7 +62,48 @@ namespace CreateEnv
                 underwater.fadeEnd          = p.fadeEnd;
                 underwater.cameraFarMargin  = p.cameraFarMargin;
                 underwater.waterLevel       = p.waterLevel; // I-5 far plane derived inside Apply()
+
+                // Only take over the scene's light when a time of day was actually
+                // chosen; -1 leaves whatever lighting the scene already has.
+                underwater.driveSunLight     = p.timeOfDay >= 0;
+                underwater.sunElevation      = p.sunElevation;
+                underwater.sunAzimuth        = p.sunAzimuth;
+                underwater.sunLightColor     = p.sunLightColor;
+                underwater.sunLightIntensity = p.sunLightIntensity;
+
+                underwater.absorbTint     = p.absorbTint;
+                underwater.surgeAmplitude = p.surgeAmplitude;
+                underwater.surgeSpeed     = p.surgeSpeed;
+                underwater.surgeDirection = new Vector2(p.surgeDirX, p.surgeDirZ);
+                underwater.encrustAmount  = p.encrustAmount;
+                underwater.encrustScale   = p.encrustScale;
+                underwater.encrustColorA  = p.encrustColorA;
+                underwater.encrustColorB  = p.encrustColorB;
+                underwater.encrustColorC  = p.encrustColorC;
+                underwater.encrustRelief  = p.encrustRelief;
+                underwater.turfAmount     = p.turfAmount;
+                underwater.turfColor      = p.turfColor;
+                underwater.turfTipColor   = p.turfTipColor;
+                underwater.turfScale      = p.turfScale;
+                underwater.turfUpBias     = p.turfUpBias;
+                underwater.turfRelief     = p.turfRelief;
             }
+
+            // 2b) Suspended particulate. The wrap box is tied to fadeEnd so snow never
+            // pops in beyond the distance the fog has already gone opaque (invariant I-2).
+            if (snow != null)
+            {
+                float snowFar = Mathf.Clamp(p.fadeEnd * 0.35f, 3f, 9f);
+                snow.nearFade = 0.5f;
+                snow.farFade  = snowFar;
+                snow.ApplySettings(p.snowCount, snowFar * 1.7f,
+                                   Color.Lerp(p.surfaceGlowColor, Color.white, 0.55f),
+                                   p.snowOpacity, p.snowSizeMin, p.snowSizeMax,
+                                   p.snowDrift, p.snowSink);
+            }
+
+            // 2c) Surface styles — must precede water.Rebuild() and EndlessTerrain.Initialize().
+            ApplySurfaceStyles(p);
 
             // 3) Water plane.
             if (water != null)
@@ -94,6 +133,14 @@ namespace CreateEnv
                 }
             }
 
+            // 4b) Drop cached feature meshes before EndlessTerrain.Initialize() below streams the
+            // first chunk:
+            foreach (var fs in featureScatters)
+            {
+                if (fs == null) continue;
+                fs.ApplyHabitat(p.lifePackIndex);   // also drops the mesh cache
+            }
+
             // 5) Streaming — LAST, after MapGenerator is configured.
             if (endlessTerrain != null)
             {
@@ -104,6 +151,44 @@ namespace CreateEnv
             else Debug.LogWarning("[EnvironmentLoader] No EndlessTerrain found — nothing will stream.");
         }
 
+        // Runtime material clones created for the chosen surface styles.
+        Material _styledTerrainMaterial;
+        Material _styledWaterMaterial;
+
+        // Applies the sea-floor texture style and the water style.
+        void ApplySurfaceStyles(EnvironmentProfile p)
+        {
+            if (p.terrainTextureStyle > 0 && mapGenerator != null && mapGenerator.terrainMaterial != null)
+            {
+                _styledTerrainMaterial = new Material(mapGenerator.terrainMaterial)
+                {
+                    name = mapGenerator.terrainMaterial.name + " (styled)"
+                };
+                TerrainTextureStyles.Apply(_styledTerrainMaterial, p.terrainTextureStyle);
+                // Caustic character is seeded from the environment's own seed and
+                // palette, so two environments on the same sea floor still differ.
+                TerrainTextureStyles.ApplyCaustics(_styledTerrainMaterial, p.terrainTextureStyle,
+                                                   p.seed, p.surfaceGlowColor);
+                mapGenerator.terrainMaterial = _styledTerrainMaterial;
+            }
+
+            if (p.waterStyle > 0 && water != null && water.waterMaterial != null)
+            {
+                _styledWaterMaterial = new Material(water.waterMaterial)
+                {
+                    name = water.waterMaterial.name + " (styled)"
+                };
+                WaterStyles.Apply(_styledWaterMaterial, p.waterStyle, p.waterColor, p.seed);
+                water.waterMaterial = _styledWaterMaterial;
+            }
+        }
+
+        void OnDestroy()
+        {
+            if (_styledTerrainMaterial != null) Destroy(_styledTerrainMaterial);
+            if (_styledWaterMaterial != null)   Destroy(_styledWaterMaterial);
+        }
+
         void AutoWire()
         {
             if (mapGenerator   == null) mapGenerator   = FindFirstObjectByType<MapGenerator>();
@@ -111,6 +196,12 @@ namespace CreateEnv
             if (water          == null) water          = FindFirstObjectByType<WaterSurface>();
             if (scatter        == null) scatter        = FindFirstObjectByType<TerrainDetailScatter>();
             if (endlessTerrain == null) endlessTerrain = FindFirstObjectByType<EndlessTerrain>();
+            // Plural, and never left null: a scene can carry several feature scatters
+            // (one for boulders, one for spires) and every one of them needs the crust.
+            if (featureScatters == null || featureScatters.Length == 0)
+                featureScatters = FindObjectsByType<ProceduralFeatureScatter>(
+                    FindObjectsInactive.Include, FindObjectsSortMode.None);
+            if (snow           == null) snow           = FindFirstObjectByType<MarineSnow>();
         }
     }
 }

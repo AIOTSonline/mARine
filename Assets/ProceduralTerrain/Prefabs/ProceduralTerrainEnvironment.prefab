@@ -269,7 +269,7 @@ MonoBehaviour:
     randomTilt: 10
     embed: 0.05
     showOnMinimap: 1
-    minimapColor: {r: 0.5, g: 1, b: 0.65, a: 1}
+    minimapColor: {r: 0.55, g: 0.95, b: 0.55, a: 1}
     countRange: {x: 4, y: 8}
     radius: 0.8
     radiusJitter: 0.3
@@ -293,7 +293,7 @@ MonoBehaviour:
     randomTilt: 8
     embed: 0.06
     showOnMinimap: 1
-    minimapColor: {r: 0.5, g: 1, b: 0.65, a: 1}
+    minimapColor: {r: 1.0, g: 0.55, b: 0.65, a: 1}
     countRange: {x: 10, y: 18}
     radius: 1.6
     radiusJitter: 0.3
