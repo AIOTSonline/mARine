@@ -1,8 +1,5 @@
-// URP stylized underwater rock for the procedural formations (boulders, spires,
-// arches, grottos). No textures: colour ramp + procedural mottling and bedding +
-// encrusting life + baked vertex AO (rgb = tint variation, a = occlusion).
-// Fades into the shared underwater fog/gradient like the sand and water do.
-// Globals come from UnderwaterEnvironment.cs.
+// URP stylized underwater hard-surface shader. No textures: colour ramp plus
+// procedural mottling, bedding, turf and crust.
 Shader "Custom/UnderwaterRock"
 {
     Properties
@@ -24,8 +21,6 @@ Shader "Custom/UnderwaterRock"
 
         // Silt on upward faces. Set the colour to the biome's seabed so rock and
         // sand share a family instead of reading as two pasted-together materials.
-        // Defaults to 0 so a material that has not opted in is byte-for-byte
-        // unchanged; the shipped rock materials set it explicitly.
         _SedimentColor ("Sediment Colour", Color) = (0.52, 0.60, 0.30, 1)
         _SedimentAmount ("Sediment on Up-Faces", Range(0, 1)) = 0
 
@@ -129,9 +124,7 @@ Shader "Custom/UnderwaterRock"
                 half rim = pow(1.0 - saturate(dot(N, V)), 3.0);
                 color += _RimColor.rgb * (rim * _RimStrength * ao);
 
-                // Turf first, crust second: the mat is the living surface and the
-                // crust's colonies grow on top of it. Reversing these puts coral
-                // under moss, which is the one order that cannot happen.
+                // Turf first, crust second: colonies grow on top of the living mat.
                 color = ApplyAlgalTurf(color, IN.positionWS, N, aoC, ambient);
                 color = ApplyEncrustation(color, IN.positionWS, N, aoC, lighting, ambient);
 

@@ -87,22 +87,16 @@ start_nvim_client.bat
 MarineBiology_AR_BurstDebugInformation_DoNotShip*
 
 # ── Project-specific ─────────────────────────────────────────────────────────
-
-# macOS Finder metadata. Also untracked from the index — see note below.
 .DS_Store
 **/.DS_Store
 
-# Offline asset pipeline: source .glb models, Blender scripts and review renders.
-# ~20 MB, lives outside Assets/ and Unity never imports it, so it is a working
-# directory rather than part of the app.
+# Offline asset pipeline: source .glb, Blender scripts, review renders (~20 MB).
 /CoralPack/
 
-# The paper (PDFs, LaTeX, Overleaf zips) — ~12 MB and not app code.
-# Worth version control, but in its own repo rather than the Unity project.
+# The paper: PDFs, LaTeX, Overleaf zips (~12 MB). Not app code.
 /Docs/
 
-# Generated preview renders from tools/. The scripts that make them ARE tracked;
-# their output is not, since it is reproducible and binary.
+# Generated preview renders. The scripts that make them are tracked.
 /tools/preview/
 /tools/venv/
 /tools/__pycache__/

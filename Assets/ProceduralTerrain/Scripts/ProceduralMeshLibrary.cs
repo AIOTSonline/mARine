@@ -2,27 +2,10 @@ using UnityEngine;
 using System.Collections.Generic;
 
 // Builds the low-poly prop meshes the biomes scatter around: kelp, seagrass, glow
-// anemones, sea fans and coral nubs. The terrain stays a cheap 2D heightfield and
-// these ride on top of it as separate meshes.
-//
-// Rock is gone on purpose. Boulders and spires were the dominant visual mass and
-// they read as ornaments sitting on a surface rather than as part of one; the whole
-// generator, its fracture/joint/bedding model and the talus that skirted it were
-// removed rather than merely turned down. Nothing here builds stone.
-//
-// Everything is deterministic per seed, generated once at startup and shared by
-// every instance (no per-instance mesh memory). Meshes are flat-shaded triangle
-// soup with baked vertex colour: rgb = subtle tint variation, a = ambient
-// occlusion. No textures anywhere — the prop/kelp shaders shade with colour
-// ramps, so the whole feature set costs a few small meshes and zero texture
-// memory.
+// anemones, sea fans and coral nubs.
 public static class ProceduralMeshLibrary
 {
-    // Values are explicit and must stay put: `kind` is serialised as an int in the
-    // biome prefabs, so renumbering would silently turn every kelp rule into
-    // something else. 0 (Boulder), 1 (Spire), 2 (Arch), 3 (Overhang) and 4 (Grotto)
-    // are all retired rock kinds — do not reuse those numbers. Anything still
-    // carrying one falls through to the default in Build() and logs a warning.
+    // Values are explicit and must stay put:
     public enum FeatureKind
     {
         KelpPlant   = 5, // fan of tall ribbons (sways in the vertex shader)
@@ -33,11 +16,6 @@ public static class ProceduralMeshLibrary
     }
 
     // Nominal size ~1 m tall; the scatter rescales via renderer bounds.
-    //
-    // `jointSeed` is the per-area seed: pass the same value to every feature in
-    // one patch and the kinds that care share a trait across it. Seagrass uses it
-    // for the current direction, so a whole bed leans together instead of each
-    // shoot picking its own. Defaults to `seed`, i.e. every instance independent.
     public static Mesh Build(FeatureKind kind, int seed, int jointSeed = 0)
     {
         var rng = new System.Random(seed);
@@ -60,32 +38,14 @@ public static class ProceduralMeshLibrary
 
     // ── Reef life ────────────────────────────────────────────────────────────
 
-    // A clump of soft cushions, scattered in the hundreds across a hard surface
-    // and merged into one mesh, so the whole budget is a few dozen
-    // triangles and there is no per-instance cost at all.
-    //
-    // This started as tall thin lobes and read as *spikes* — a rock wearing thorns.
-    // Encrusting turf is the opposite shape: wider than it is tall, rounded, and
-    // low, with the impression of mass coming from many clumps crowding each other
-    // rather than from any one of them being interesting. So each cushion here is
-    // deliberately squat (height ~0.45 of its width), smooth-shaded, and small; the
-    // mossy read comes from density, which is why the carpet runs at a few hundred
-    // per host instead of a few dozen.
-    //
-    // Grown along +Y; the carpet rotates it onto the face normal.
+    // A clump of soft cushions, merged into one mesh so hundreds cost a few dozen tris.
     static Mesh BuildCoralNub(System.Random rng, int seed)
     {
         var verts = new List<Vector3>();
         var tris = new List<int>();
 
-        // Triangle count is multiplied by hundreds of colonies per rock, so it is the
-        // most expensive number in this file. Two rings plus an apex fan is 30
-        // triangles a cushion, and 1-2 cushions puts a clump at 30-60.
-        //
-        // Dropping to a single ring saves a third, but a cushion then has only its
-        // base ring and an apex, so it comes out a faceted cone and the turf loses
-        // exactly the soft roundness that makes it read as moss. The saving is taken
-        // out of carpetMaxPerRock instead, where it costs coverage rather than shape.
+        // Triangle count is multiplied by hundreds of colonies per rock, so it is the most
+        // expensive number in this file.
         int cushions = 1 + rng.Next(2);
         const int segs = 6;
         const int rings = 2;
@@ -197,11 +157,6 @@ public static class ProceduralMeshLibrary
 
     // A seagrass shoot: many short blades arcing over from a near-point base.
     // ~110 triangles, because the effect is density — see tools/preview_seagrass.py.
-    //
-    // Three things decide whether a patch reads as a bed or as scattered sprigs, and
-    // all three are easy to get wrong: blades share one current direction (carried by
-    // `jointSeed`) so the bed has a grain; they lean from the sediment rather than
-    // launching vertical; and they are widest about a third up, not at the base.
     static Mesh BuildSeagrassTuft(System.Random rng, int seed, int jointSeed)
     {
         var d = new Draft();
@@ -300,9 +255,8 @@ public static class ProceduralMeshLibrary
         }
     }
 
-    // Gorgonian sea fan: a mostly-planar recursive branch structure, like the
-    // pink fans silhouetted against the water in every reef shot. Branch quads
-    // are emitted double-sided so the fan reads from both directions.
+    // Gorgonian sea fan: a mostly-planar recursive branch structure, like the pink fans
+    // silhouetted against the water in every reef shot.
     static Mesh BuildSeaFan(System.Random rng, int seed)
     {
         var d = new Draft();
@@ -344,18 +298,6 @@ public static class ProceduralMeshLibrary
 
     // Converts an indexed mesh (e.g. a displaced icosphere) into a flat-shaded
     // Draft and bakes it.
-    // Smooth-shaded, index-shared finish for the soft organic kinds.
-    //
-    // FinishFlat splits every triangle into three unique vertices to get hard
-    // facets, which is right for stone and wrong for anything soft — a faceted
-    // cushion reads as a chipped pebble or a thorn, not as moss. This keeps the
-    // shared indexing (a third of the vertices) and averages the normals.
-    //
-    // UV.y carries the vertex's height above its OWN base, 0 at the rock and 1 at
-    // the tip. The carpet merges hundreds of colonies into one chunk-space mesh, so
-    // object-space Y no longer tells a shader anything about an individual colony —
-    // this is what lets the turf shader sway tips while bases stay planted.
-    // UV.x carries a per-colony random, so neighbours vary in species and phase.
     static Mesh FinishSmooth(List<Vector3> verts, List<int> tris, int seed,
                              System.Func<Vector3, float> ao, float species)
     {
@@ -430,9 +372,8 @@ public static class ProceduralMeshLibrary
             T.Add(i); T.Add(i + 2); T.Add(i + 3);
         }
 
-        // Flat-shaded output: verts already duplicated per triangle, so face
-        // normals come free. AO callback bakes into vertex alpha; rgb gets a
-        // faint positional tint so big rocks aren't a single flat colour.
+        // Flat-shaded output: verts already duplicated per triangle, so face normals come
+        // free. AO callback bakes into vertex alpha;
         public Mesh ToFlatMesh(int seed, System.Func<Vector3, float> ao, bool glowIsBaked = false)
         {
             var normals = new Vector3[V.Count];

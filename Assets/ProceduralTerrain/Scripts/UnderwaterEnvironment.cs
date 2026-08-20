@@ -119,9 +119,7 @@ public class UnderwaterEnvironment : MonoBehaviour
 
     void Update() => Apply(); // keep live, and re-assert settings each frame
 
-    // Points the scene's directional light where the time of day says. Elevation is
-    // degrees above the horizon and azimuth is a compass bearing, because that is how
-    // a time of day is actually described; Unity wants a rotation, so convert here.
+    // Points the scene's directional light where the time of day says.
     void ApplySun()
     {
         if (!driveSunLight) return;
@@ -198,9 +196,8 @@ public class UnderwaterEnvironment : MonoBehaviour
         Shader.SetGlobalFloat(SurgeSpeedId, surgeSpeed);
         Shader.SetGlobalVector(SurgeDirId,  new Vector4(dir.x, dir.y, 0f, 0f));
 
-        // A profile saved before encrustColorC existed deserialises it to a fully
-        // transparent black. Treating that as a real colour would shade every
-        // underside black, so fall back to the shipped cryptic tone instead.
+        // A profile saved before encrustColorC existed deserialises it to a fully transparent
+        // black.
         Color crustC = encrustColorC.a < 0.01f
             ? new Color(0.44f, 0.20f, 0.26f, 1f)
             : encrustColorC;

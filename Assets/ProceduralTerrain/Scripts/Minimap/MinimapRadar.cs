@@ -4,13 +4,6 @@ using UnityEngine.UI;
 
 // GTA-style radar. Scans for things near the camera and draws them as blips:
 //   the level glyph at your depth, an up glyph above you, a down glyph below you.
-//   Out-of-range things clamp to the rim (direction only). Dense clusters merge into
-//   one brighter/larger blip instead of overlapping.
-//
-// Two zero-coupling sources:
-//   1) MinimapRegistry  - our own props self-register (no colliders needed).
-//   2) Physics-by-tag   - any collider whose tag is listed in tagStyles (host objects).
-// Self-builds a screen-space radar panel, so just drop this component on a GameObject.
 public class MinimapRadar : MonoBehaviour
 {
     [Header("Tracking")]

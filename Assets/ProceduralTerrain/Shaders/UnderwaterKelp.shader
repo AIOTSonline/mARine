@@ -1,7 +1,4 @@
-// URP kelp/seagrass ribbon shader: vertex-shader current sway (weighted by
-// uv.y so roots stay planted), root→tip colour ramp, translucent backlight
-// when the sun shines through a blade, shared underwater fog. Two-sided.
-// Globals come from UnderwaterEnvironment.cs.
+// URP kelp/seagrass ribbon shader:
 Shader "Custom/UnderwaterKelp"
 {
     Properties

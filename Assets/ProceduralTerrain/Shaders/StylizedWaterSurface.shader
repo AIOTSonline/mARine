@@ -94,9 +94,7 @@ Shader "Custom/StylizedWaterSurface"
                 return pow(abs(c), 8.0);
             }
 
-            // Voronoi F2-F1 with slowly drifting cell centres. The difference is
-            // small only near a cell border, so thresholding it draws a thin web
-            // whose lines undulate as the centres move.
+            // Voronoi F2-F1 with slowly drifting cell centres.
             float VoronoiEdge(float2 p, float time)
             {
                 float2 ip = floor(p);
@@ -122,11 +120,8 @@ Shader "Custom/StylizedWaterSurface"
                 return sqrt(f2) - sqrt(f1);
             }
 
-            // Style 1 — ripple web. _PatternScale is tuned for the caustic field,
-            // where one unit is a fine filament; a voronoi cell at that scale is
-            // sub-metre and reads as noise, so this mode rescales internally to
-            // metre-sized cells. The low-frequency term stops the polygons from
-            // reading as a uniform lattice.
+            // Style 1 — ripple web. _PatternScale is tuned for the caustic field, where one unit
+            // is a fine filament;
             half PatternRipple(float2 uv, float time)
             {
                 float2 q = uv * 0.18;
@@ -136,9 +131,7 @@ Shader "Custom/StylizedWaterSurface"
                 return saturate(web * 1.25);
             }
 
-            // Style 2 — directional streaks: anisotropic noise stretched along the
-            // shared surge direction and scrolled, so the surface reads as moving
-            // water rather than a static pattern.
+            // Style 2 — directional streaks:
             half PatternStreaks(float2 uv, float time)
             {
                 float2 dir = normalize(_UnderwaterSurgeDir.xy + 1e-5);

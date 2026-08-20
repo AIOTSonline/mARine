@@ -43,9 +43,7 @@ public class EndlessTerrain : MonoBehaviour
         if (autoStart) Initialize();
     }
 
-    // Idempotent streaming bootstrap. EnvironmentLoader calls this AFTER it has
-    // configured MapGenerator + assigned detailLevels, so chunks are never built
-    // from stale/default parameters. Safe to call more than once.
+    // Idempotent streaming bootstrap.
     public void Initialize()
     {
         if (_initialized) return;
@@ -65,12 +63,8 @@ public class EndlessTerrain : MonoBehaviour
         UpdateVisibleChunks();
     }
 
-    // Props are seated by raycasting the LOD0 collider, but the chunk renders whatever
-    // LOD its distance selects, and lower LODs drop every Nth vertex — so their surface
-    // sits metres below LOD0 across ridges. Any prop that outlives LOD0 therefore hangs
-    // in open water. The two distances are also in different units (LOD thresholds are
-    // chunk units, placementDistance is world metres, Scale between them), which is how
-    // they drifted apart. Trim the decorators so props always die inside the LOD0 radius.
+    // Props are seated against the LOD0 collider, so decorators must stop before the
+    // distance where a coarser LOD takes over or they float.
     void ClampDecoratorDistancesToLod0()
     {
         if (_decorators == null || detailLevels == null || detailLevels.Length == 0) return;
@@ -99,8 +93,6 @@ public class EndlessTerrain : MonoBehaviour
 
     // View-distance presets (index 0 Near, 1 Medium, 2 Far). The last threshold is
     // the world-reach used by EnvironmentBounds invariant I-2 (fog hides the edge).
-    // Raw LOD tables are deliberately not user-editable — a bad table means missing
-    // colliders or a frame-rate cliff.
     public static LODInfo[] BuildViewDistance(int index)
     {
         switch (Mathf.Clamp(index, 0, 2))
@@ -164,9 +156,7 @@ public class EndlessTerrain : MonoBehaviour
     // Merges the legacy single-scatter slot and the extras into one list.
     ChunkDecorator[] CollectDecorators()
     {
-        // Safety net: if the Inspector reference was dropped (e.g. Unity can lose it
-        // when a component's base class changes on reimport), find the scatter in the
-        // scene so props still spawn instead of silently disappearing.
+        // Safety net: if the Inspector reference was dropped (e.g.
         if (detailScatter == null) detailScatter = FindFirstObjectByType<TerrainDetailScatter>();
 
         var list = new List<ChunkDecorator>();
@@ -315,10 +305,8 @@ public class EndlessTerrain : MonoBehaviour
 
             float worldDst = viewerDstScaled * Scale;
 
-            // Props may only exist while the chunk is drawing the same LOD0 mesh they
-            // were seated against; anything else leaves them floating over a coarser
-            // surface. The distance clamp in Initialize should get there first — this
-            // is the hard guarantee.
+            // Props may only exist while the chunk is drawing the same LOD0 mesh they were seated
+            // against;
             bool atLod0 = _previousLODIndex == 0 && _meshCollider != null && _meshCollider.enabled;
 
             for (int i = 0; i < _decorators.Length; i++)

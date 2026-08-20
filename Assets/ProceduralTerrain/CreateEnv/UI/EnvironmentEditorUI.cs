@@ -6,12 +6,7 @@ using UnityEngine.UI;
 
 namespace CreateEnv.UI
 {
-    // Create/Edit form. Thin: it instantiates styled ROW PREFABS (built by the Editor
-    // generator) into a scroll container and binds them to the profile's friendly
-    // layer (SimpleEnvironmentSettings) — a handful of dropdowns and 0..1 sliders,
-    // no technical knobs. Every change runs SimpleEnvironmentMapper.Apply, which
-    // derives the technical fields and clamps them, so the form cannot express a
-    // broken environment; Save clamps once more on the way to disk.
+    // Create/Edit form. Thin:
     public class EnvironmentEditorUI : MonoBehaviour
     {
         [Header("Wiring (set by the Editor generator)")]
@@ -162,9 +157,8 @@ namespace CreateEnv.UI
             Dropdown("Exploration area", SimpleEnvironmentSettings.ExplorationAreas,
                      s.explorationArea, v => { s.explorationArea = v; Edited(); });
 
-            // Advanced: real controls, but ones with a sensible default that most
-            // environments never need to touch. Kept out of the main flow rather than
-            // out of the form.
+            // Advanced: real controls, but ones with a sensible default that most environments
+            // never need to touch.
             Header("Advanced settings");
             RangedSlider("Site depth", s.siteDepthMeters, 1f, 45f,
                          v => $"{v:0} m", v => { s.siteDepthMeters = v; Edited(); });
@@ -188,9 +182,8 @@ namespace CreateEnv.UI
         }
 
         // ── row builders (instantiate the styled prefabs, then bind) ─────────
-        // Read-only derived value, shown under the control that produces it, so the
-        // builder can see what the physics made of their choice instead of having
-        // to guess what "water type IB" means in metres.
+        // Read-only derived value, shown under the control that produces it, so the builder
+        // can see what the physics made of their choice instead of having to guess what
         void Note(string text)
         {
             if (headerRowPrefab == null) return;
@@ -218,9 +211,7 @@ namespace CreateEnv.UI
             slider.onValueChanged.AddListener(v => { if (valueText != null) valueText.text = Percent(v); set(v); });
         }
 
-        // Like Slider, but in real units. Depth is metres, not a 0..1 feeling —
-        // the ocean model needs the actual number to work out how much light gets
-        // down there.
+        // Like Slider, but in real units.
         void RangedSlider(string cap, float value, float min, float max,
                           Func<float, string> format, Action<float> set)
         {

@@ -2,13 +2,7 @@ using UnityEngine;
 
 namespace CreateEnv
 {
-    // Lives on one GameObject in the Explore scene. On Start it takes the selected
-    // profile, clamps it once more (defence in depth), and pushes every value into
-    // the five terrain systems in the correct order — MapGenerator first, streaming
-    // LAST — so chunks are never generated from stale/default parameters.
-    //
-    // This is the ONLY place configuration is applied, and it runs once. There is no
-    // per-frame cost: after Start, the terrain behaves exactly like a hand-authored scene.
+    // Lives on one GameObject in the Explore scene.
     public class EnvironmentLoader : MonoBehaviour
     {
         [Header("Optional explicit refs (auto-found if left empty)")]
@@ -108,9 +102,7 @@ namespace CreateEnv
                                    p.snowDrift, p.snowSink);
             }
 
-            // 2c) Surface styles — must precede water.Rebuild() (which assigns the
-            // water material) and EndlessTerrain.Initialize() (chunks read
-            // MapGenerator.terrainMaterial as they are created).
+            // 2c) Surface styles — must precede water.Rebuild() and EndlessTerrain.Initialize().
             ApplySurfaceStyles(p);
 
             // 3) Water plane.
@@ -141,10 +133,8 @@ namespace CreateEnv
                 }
             }
 
-            // 4b) Drop cached feature meshes before EndlessTerrain.Initialize() below
-            // streams the first chunk: the scatter caches its mesh variants the first
-            // time a chunk asks for one, so a profile change after that would not be
-            // reflected until the caches are cleared.
+            // 4b) Drop cached feature meshes before EndlessTerrain.Initialize() below streams the
+            // first chunk:
             foreach (var fs in featureScatters)
             {
                 if (fs == null) continue;
@@ -161,23 +151,11 @@ namespace CreateEnv
             else Debug.LogWarning("[EnvironmentLoader] No EndlessTerrain found — nothing will stream.");
         }
 
-        // Runtime material clones created for the chosen surface styles. Kept so they
-        // can be destroyed with this object — a Material created with `new` is not
-        // collected automatically and would leak once per environment load.
+        // Runtime material clones created for the chosen surface styles.
         Material _styledTerrainMaterial;
         Material _styledWaterMaterial;
 
         // Applies the sea-floor texture style and the water style.
-        //
-        // Both are applied to CLONES. TerrainTextureStyles/WaterStyles write directly
-        // into the material they are handed, and the materials here are shared project
-        // assets: mutating them in the Editor persists the change into the asset file,
-        // so every environment loaded afterwards would inherit the last one's look.
-        //
-        // Style index 0 is a strict no-op and is deliberately handled by skipping the
-        // clone entirely rather than by cloning and applying nothing — an untouched
-        // scene material is the one case that must be bit-for-bit unchanged, since
-        // every profile saved before these fields existed deserializes to 0.
         void ApplySurfaceStyles(EnvironmentProfile p)
         {
             if (p.terrainTextureStyle > 0 && mapGenerator != null && mapGenerator.terrainMaterial != null)

@@ -3,10 +3,6 @@ using System.Collections.Generic;
 
 // Scatters procedurally-generated feature meshes (rock formations, kelp plants,
 // glow anemones — see ProceduralMeshLibrary) onto streamed terrain chunks.
-// Sister of TerrainDetailScatter, but instead of prefabs it shares a small
-// library of runtime-built meshes: every arch in the world is one of a few
-// mesh variants, so memory stays flat no matter how far you swim.
-// Deterministic per chunk, so formations rebuild identically when you return.
 public class ProceduralFeatureScatter : ChunkDecorator
 {
     [System.Serializable]
@@ -70,10 +66,7 @@ public class ProceduralFeatureScatter : ChunkDecorator
     [Header("Feature rules")]
     public FeatureRule[] rules;
 
-    // Mesh library: built once, shared by every instance. Keyed per rule index
-    // *and* detail level (index = ruleIndex * 2 + detail) so two rules with the
-    // same kind still get distinct variant sets, and so a rule's small and large
-    // instances can draw from differently-tessellated sets.
+    // Mesh library: built once, shared by every instance.
     Mesh[][] _variantCache;
 
     // Shared by every rule and every rock in the world: a handful of colony shapes is
@@ -95,9 +88,7 @@ public class ProceduralFeatureScatter : ChunkDecorator
     }
 
     // Enable rules for the habitat the profile asked for, so a "Sandy Bottom" custom
-    // environment does not grow a kelp forest. `lifePackIndex` is the field the simple
-    // layer already derives from the habitat dropdown (1 = sandy, 2 = kelp, 3 = reef).
-    // A rule this does not recognise is left as the prefab authored it.
+    // environment does not grow a kelp forest.
     public void ApplyHabitat(int lifePackIndex)
     {
         if (rules == null) return;
@@ -137,10 +128,7 @@ public class ProceduralFeatureScatter : ChunkDecorator
 
         int v = Mathf.Abs(variant) % rule.variants;
         if (set[v] == null)
-            // The joint seed deliberately depends on `seed` alone, not on the rule or
-            // the variant: every rock this scatter produces then fractures along the
-            // same joint set, the way one outcrop's worth of rock actually does. Two
-            // biomes with different seeds still get different joint orientations.
+            // The joint seed deliberately depends on `seed` alone, not on the rule or the variant:
             set[v] = ProceduralMeshLibrary.Build(rule.kind,
                 seed * 31 + ruleIndex * 977 + v * 7919 + (int)rule.kind * 53,
                 jointSeed: seed * 31 + 12007);

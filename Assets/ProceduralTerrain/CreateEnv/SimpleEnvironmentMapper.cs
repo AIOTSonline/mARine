@@ -2,11 +2,8 @@ using UnityEngine;
 
 namespace CreateEnv
 {
-    // The single bridge between the friendly layer (SimpleEnvironmentSettings) and
-    // the technical layer (EnvironmentProfile). The editor UI edits profile.simple
-    // and calls Apply(); everything downstream — EnvironmentBounds.Clamp,
-    // EnvironmentRepository, EnvironmentLoader — is unchanged and still enforces
-    // every cap and cross-field invariant on the derived technical values.
+    // The single bridge between the friendly layer (SimpleEnvironmentSettings) and the
+    // technical layer (EnvironmentProfile).
     public static class SimpleEnvironmentMapper
     {
         public static void Apply(EnvironmentProfile p)
@@ -26,9 +23,7 @@ namespace CreateEnv
         }
 
         // ── 1. Seafloor ──────────────────────────────────────────────────────
-        // Each profile is a hand-tuned recipe over the terrain-shape and biome-style
-        // fields; waterLevel comes with it so invariant I-3 (peaks stay submerged)
-        // holds for every recipe. Complexity layers fractal detail on top.
+        // Each profile is a hand-tuned recipe over the terrain-shape and biome-style fields;
         static void ApplySeafloor(EnvironmentProfile p, SimpleEnvironmentSettings s)
         {
             switch (s.seafloorProfile)
@@ -87,11 +82,7 @@ namespace CreateEnv
             p.lifeDensity      = Mathf.Lerp(0.3f, 1.8f, d);
             p.maxPropsPerChunk = Mathf.RoundToInt(Mathf.Lerp(80f, 300f, d));
 
-            // What grows on the rock comes from the ocean model, because it is not
-            // an art choice: submerged hard substrate in the photic zone is
-            // colonised within months, so coverage is near-total everywhere and
-            // what changes with depth is which community — lit algal turf and
-            // coralline up top, sponges and ascidians once the light runs out.
+            // What grows on the rock comes from the ocean model, because it is not an art choice:
             var benthos = OceanModel.BenthosAt(s.ResolvedWaterType(), s.siteDepthMeters,
                                                s.marineHabitat, d);
             p.encrustAmount = benthos.coverage;
@@ -115,11 +106,8 @@ namespace CreateEnv
             // Two models, user's choice. Both write the same technical fields.
             if (s.waterModel == 1) { ApplyWaterClassic(p, s); return; }
 
-            // Water is derived, not picked. The Jerlov optical type fixes the
-            // attenuation spectrum; fog density, absorption spread and the colour
-            // of the medium all fall out of it (see OceanModel). Clarity remains
-            // as a within-type nudge — the same water on a calm day versus after a
-            // swell has stirred the bottom — rather than being the whole model.
+            // Water is derived, not picked. The Jerlov optical type fixes the attenuation
+            // spectrum;
             int   type    = s.ResolvedWaterType();
             float clarity = s.waterClarity;
             float depth   = s.siteDepthMeters;
@@ -129,9 +117,7 @@ namespace CreateEnv
             p.fogDensity = density * Mathf.Lerp(1.25f, 0.75f, clarity);
             p.absorbTint = OceanModel.AbsorbTintFor(type);
 
-            // Light actually reaching this depth drives how bright the scene is,
-            // instead of brightness being an independent art choice that can
-            // contradict the water it is sitting in.
+            // Brightness follows the light that actually reaches this depth.
             float light = OceanModel.LightAtDepth(type, depth);
             p.sunGlowIntensity = Mathf.Lerp(0.35f, 1.35f, Mathf.Sqrt(light));
             p.ambientIntensity = Mathf.Lerp(0.45f, 1.25f, Mathf.Sqrt(light));
@@ -149,10 +135,7 @@ namespace CreateEnv
             p.surgeDirX      = 1f;
             p.surgeDirZ      = 0.35f;
 
-            // Colour of the medium: whatever survives the path, at three path
-            // lengths. Nothing here selects "blue" or "green" — clear water has its
-            // attenuation minimum in the blue and coastal water in the green, so
-            // the tropical-blue / coastal-green split emerges from the water type.
+            // Colour of the medium: whatever survives the path, at three path lengths.
             float vis = OceanModel.VisibilityMetres(type);
             Color medium  = OceanModel.WaterColour(type, vis * 0.30f, 0.62f);
             Color deep    = OceanModel.WaterColour(type, vis * 0.85f, 0.24f);
@@ -215,11 +198,8 @@ namespace CreateEnv
         }
 
         // ── 5. Surface styles ────────────────────────────────────────────────
-        // A straight pass-through, unlike every other mapping here. These two are
-        // genuinely independent aesthetic choices: they drive no other system, so
-        // there is nothing to correlate them with. Both are already validated
-        // indices (SimpleEnvironmentSettings.Clamp), and index 0 leaves the
-        // scene's own materials untouched.
+        // A straight pass-through, unlike every other mapping here. These two are genuinely
+        // independent aesthetic choices:
         static void ApplySurfaces(EnvironmentProfile p, SimpleEnvironmentSettings s)
         {
             p.terrainTextureStyle = s.seafloorSurface;
@@ -227,12 +207,8 @@ namespace CreateEnv
         }
 
         // ── 3d. Time of day ──────────────────────────────────────────────────
-        // Runs AFTER ApplyWater, because it scales the colours that produced.
-        //
-        // Underwater, time of day is not a tint — it is how much light gets in at all.
-        // A reef at noon and the same reef at night are different places, so the sun
-        // angle, its colour, the ambient level, the shaft strength and the brightness
-        // of the water itself all move together.
+        // Runs AFTER ApplyWater, because it scales the colours that produced. Underwater, time
+        // of day is not a tint — it is how much light gets in at all.
         static void ApplyTimeOfDay(EnvironmentProfile p, SimpleEnvironmentSettings s)
         {
             p.timeOfDay = s.timeOfDay;
@@ -296,10 +272,7 @@ namespace CreateEnv
         {
             p.viewDistanceIndex = s.explorationArea; // Small/Medium/Large = Near/Medium/Far
 
-            // The fog band follows the streaming reach rather than being set apart from
-            // it: fog that stops short of the edge shows the world ending, and fog
-            // thicker than the reach wastes streaming. EnvironmentBounds.Clamp still
-            // trims these (invariants I-1/I-2), this just starts them consistent.
+            // The fog band follows the streaming reach rather than being set apart from it:
             float reach = EnvironmentBounds.ViewDistanceWorldReach(s.explorationArea);
             p.fadeEnd   = reach * 0.85f;
             p.fadeStart = p.fadeEnd * 0.55f;

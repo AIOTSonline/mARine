@@ -2,33 +2,11 @@ using UnityEngine;
 
 namespace CreateEnv
 {
-    // What the ocean actually does to light, so environments can be points in a
-    // physical space instead of a list of hand-picked art presets.
-    //
-    // Everything visual about being underwater — how far you see, what colour the
-    // water is, how fast red drains out of things, how much light reaches the
-    // seabed, what grows on the rock — falls out of two numbers: how turbid the
-    // water is, and how deep you are. This class holds that model; the mapper
-    // reads it and fills in the technical EnvironmentProfile.
-    //
+    // What the ocean actually does to light, so environments can be points in a physical
+    // space instead of a list of hand-picked art presets. Everything visual about being
     // ── Water type ───────────────────────────────────────────────────────────
-    // Turbidity is expressed as the Jerlov optical water type, the standard
-    // oceanographic classification: I / IA / IB / II / III for open ocean
-    // (I clearest), and 1C..9C for coastal water (1C clearest, 9C most turbid).
-    // The classification is defined on the downwelling diffuse attenuation
-    // coefficient Kd — how fast light of a given wavelength dies with depth.
-    //
-    // Published Kd(490 nm) anchors this table: IA 0.035-0.040, IB 0.042-0.065,
-    // II 0.07-0.10, III 0.115-0.14 m^-1, with measured coastal water running
-    // ~0.15-0.35 m^-1 and dirtier inshore water well above that.
-    //
-    // The important structure is the *crossover*, and it is why this is worth
-    // modelling rather than art-directing. In clear open ocean the minimum Kd sits
-    // in the blue, so blue survives longest and the water reads blue. Toward
-    // coastal water, CDOM and phytoplankton absorb blue hard, the minimum shifts
-    // to the green, and the water reads green. "Tropical blue" and "coastal green"
-    // are not two palettes — they are the same physics at two turbidities, and in
-    // this table the hue swap emerges on its own between III and 1C.
+    // Turbidity is expressed as the Jerlov optical water type, the standard oceanographic
+    // classification:
     public static class OceanModel
     {
         public static readonly string[] WaterTypeNames =
@@ -47,9 +25,6 @@ namespace CreateEnv
 
         // Diffuse attenuation coefficient Kd, 1/m, sampled at representative
         // red (~650 nm), green (~550 nm) and blue (~450 nm) wavelengths.
-        // Red is high everywhere: pure water itself absorbs red strongly, which is
-        // why red drains out of everything within the first few metres regardless
-        // of how clean the water is.
         static readonly Vector3[] Kd =
         {
             new Vector3(0.35f, 0.063f, 0.019f), // I
@@ -78,10 +53,8 @@ namespace CreateEnv
                                Mathf.Exp(-k.z * metres));
         }
 
-        // The colour the water takes on: whatever light is left after a path
-        // length, normalised so the surviving channel is full. This is where the
-        // blue-to-green shift comes from — nothing selects it, it is just which
-        // channel has the smallest Kd.
+        // The colour the water takes on: whatever light is left after a path length,
+        // normalised so the surviving channel is full.
         public static Color WaterColour(int waterType, float metres, float valueScale = 1f)
         {
             Vector3 t = Transmission(waterType, metres);
@@ -93,16 +66,6 @@ namespace CreateEnv
         }
 
         // Visual range in metres, via the Secchi relation z ~ 1.44 / Kd.
-        //
-        // Keyed off the *surviving* channel, not the average: you see by whatever
-        // light is left, so in clear ocean that is the blue and in coastal water
-        // the green. Averaging instead lets the huge red coefficient — which is
-        // high in every water type because water itself eats red — drag clear
-        // ocean down to a dozen metres, which is wrong by a factor of five.
-        //
-        // Approximate, and flagged as such, but it makes clarity mean metres
-        // rather than an unitless slider: II lands near 15 m, coastal 3C near 6 m,
-        // muddy inshore near 2.5 m, which is what those waters actually dive like.
         public static float VisibilityMetres(int waterType)
         {
             Vector3 k = Attenuation(waterType);
@@ -116,9 +79,6 @@ namespace CreateEnv
             => 1.98f / Mathf.Max(VisibilityMetres(waterType), 0.01f);
 
         // How much harder the weak channels are absorbed than the strong one.
-        // UnderwaterCommon scales per-channel absorption by (1 + absorbTint *
-        // (1 - hue)), so matching the real Kd spread means feeding it the ratio
-        // between the fastest- and slowest-dying channels.
         public static float AbsorbTintFor(int waterType)
         {
             Vector3 k = Attenuation(waterType);
@@ -127,9 +87,7 @@ namespace CreateEnv
             return Mathf.Clamp(hi / Mathf.Max(lo, 1e-4f) - 1f, 0f, 4f);
         }
 
-        // Fraction of surface daylight reaching a given depth, averaged over the
-        // visible band. This is what actually decides whether the seabed is a lit
-        // algal habitat or a dim filter-feeder one.
+        // Fraction of surface daylight reaching a given depth, averaged over the visible band.
         public static float LightAtDepth(int waterType, float depthMetres)
         {
             Vector3 t = Transmission(waterType, Mathf.Max(depthMetres, 0f));
@@ -138,34 +96,19 @@ namespace CreateEnv
 
         // ── Benthic community ────────────────────────────────────────────────
         // Encrusting cover on hard substrate is near-total in the photic zone:
-        // corallines, bryozoans and tubeworms take bare rock within 1-4 months,
-        // so "bare grey rock" is not a state submerged stone stays in.
-        //
-        // What depth changes is *who*, not *how much*. Shallow lit rock is algal
-        // turf and coralline; as light runs out the algae drop away and sponges,
-        // ascidians and bryozoans take over — still fully covered, just a
-        // different palette. So coverage stays high with depth and only the
-        // colours move.
         public struct Benthos
         {
             public float coverage;   // fraction of rock surface encrusted
             public Color colorA;     // dominant lit community
             public Color colorB;     // secondary lit community
-            // The cryptic community — sponges, ascidians, bryozoans — that lives on
-            // undersides, overhangs and crevice walls. It is a separate axis from
-            // depth: even on a sunlit reef flat the shaded face of a boulder carries
-            // filter feeders, not algae. The shader selects it by face orientation,
-            // so it is not simply "what colorA fades to as you go deeper".
+            // The cryptic community — sponges, ascidians, bryozoans — that lives on undersides,
+            // overhangs and crevice walls.
             public Color colorC;
             // How much physical thickness the crust reads as. Coral turf is knobbly;
             // a sediment-dulled film on sand is nearly flat.
             public float relief;
 
             // The continuous filamentous algal mat that underlies the colonies —
-            // the fuzzy green coat on a shallow boulder. Unlike `coverage`, which
-            // stays high at any depth because filter feeders take over from algae,
-            // this is strictly light-limited: it is dense on a sunlit reef flat and
-            // simply absent below the photic zone.
             public float turf;
             public Color turfBase;   // shaded base of the mat
             public Color turfTip;    // sunlit filament tips
@@ -181,13 +124,10 @@ namespace CreateEnv
             float cover = Mathf.Lerp(0.55f, 0.95f, Mathf.Clamp01(lifeDensity01));
 
             // Algal (lit) palette vs filter-feeder (dim) palette per habitat.
-            // `relief` is how proud of the rock the crust stands: reef turf and
-            // coralline build real thickness, a silted film on a sand plain does not.
             Color litA, litB;
             float relief;
-            // Turf is a different palette from the colonies: the mat is green
-            // wherever there is light, because it is algae. On a reef it is the
-            // duller olive-brown film between the corals, not the corals' own pinks.
+            // Turf is a different palette from the colonies: the mat is green wherever there is
+            // light, because it is algae.
             Color turfBase, turfTip;
             float turfDensity;
             switch (habitat)
@@ -226,9 +166,8 @@ namespace CreateEnv
 
             float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(light * 3.2f));
 
-            // The cryptic palette does not brighten with depth the way the lit one
-            // does — a shaded underside is a shaded underside at 3 m or 30 m — so
-            // colorC only warms slightly rather than tracking `t` all the way.
+            // The cryptic palette barely shifts with depth: a shaded underside looks the
+            // same at 3 m or 30 m.
             Color cryptic = Color.Lerp(dimA, new Color(0.58f, 0.26f, 0.30f), t * 0.45f);
 
             return new Benthos

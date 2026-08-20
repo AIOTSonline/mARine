@@ -1,10 +1,8 @@
 using UnityEngine;
 using CreateEnv;
 
-// Scatters props onto streamed terrain chunks. Each rule places its prefabs in one of two ways:
-//   Cluster   – packs members into a domed mound (reefs, dense seaweed patches)
-//   Scattered – drops members individually across the chunk (lone corals, single plants)
-// Prefab-only; seeded per chunk so reefs rebuild identically when you return.
+// Scatters props onto streamed terrain chunks. Each rule places its prefabs in one of
+// two ways:
 public class TerrainDetailScatter : ChunkDecorator
 {
     public enum ScatterMode { Cluster, Scattered }
@@ -77,9 +75,7 @@ public class TerrainDetailScatter : ChunkDecorator
         [Tooltip("Extra scale on the centre item (1 = none). Builds a size hierarchy.")]
         public float centerScaleBoost = 1.4f;
 
-        // Value-copy for the Create-Env loader: lets us reuse a Life Pack's rule
-        // (with its shared prefab list) while overriding densityPerChunk without
-        // mutating the source asset.
+        // Value-copy for the Create-Env loader:
         public ScatterRule ShallowClone() => (ScatterRule)MemberwiseClone();
     }
 
@@ -123,10 +119,8 @@ public class TerrainDetailScatter : ChunkDecorator
     bool _loggedFirst;
 
     // ── Create-Env: apply a Life Pack + per-species density (called by loader) ──
-    // Rebuilds rules[] from the chosen pack, scaling each rule's density by the
-    // global multiplier and its per-species multiplier. Everything remains bounded
-    // by maxPropsPerChunk, so no pack/density combination can overload a chunk.
-    // A null pack clears all life (the "None" option).
+    // Rebuilds rules[] from the chosen pack, scaling each rule's density by the global
+    // multiplier and its per-species multiplier.
     public void ApplyLifePack(LifePackLibrary.Pack pack, float globalDensity,
                               float[] speciesDensity, int maxProps, bool shadows,
                               float tint, int scatterSeed)
@@ -367,9 +361,6 @@ public class TerrainDetailScatter : ChunkDecorator
     }
 
     // Per-instance shadows, optional material override, and water-colour tint.
-    // When unifyMaterial is set, each prop's own albedo map is carried across into a
-    // property block first, so switching every prop onto the shared surge/medium
-    // shader keeps its original texture instead of flattening the whole scatter.
     void ApplyLook(Renderer[] renderers)
     {
         if (renderers.Length == 0) return;

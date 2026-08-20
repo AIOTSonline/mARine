@@ -1,9 +1,4 @@
-// URP bioluminescent prop shader (glow anemones, deep-biome accents): a dim
-// body plus a slow-pulsing emissive mask baked into vertex alpha (tentacle
-// tips glow, body barely). Each instance pulses out of phase using its world
-// position, so a field of anemones twinkles instead of blinking in unison.
-// Emission punches through the fog a little — a distant living glow in the
-// dark. Globals come from UnderwaterEnvironment.cs.
+// URP bioluminescent prop shader (glow anemones, deep-biome accents):
 Shader "Custom/UnderwaterGlow"
 {
     Properties

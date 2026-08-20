@@ -1,10 +1,7 @@
 using UnityEngine;
 
-// Styled heightmap generation for biome terrains. Classic delegates to Noise.cs
-// (bit-identical with the original scenes); Canyons layers domain-warped ridged
-// fBm and terracing on top of the same seam-safe coordinate scheme, producing
-// mesa plateaus and near-vertical cliff bands from a plain 2D heightmap.
-// Pure math, no Unity objects touched: safe to run on worker threads.
+// Styled heightmap generation for biome terrains. Classic delegates to Noise.cs (bit-
+// identical with the original scenes);
 public static class TerrainShaper
 {
     public enum Style
@@ -107,9 +104,7 @@ public static class TerrainShaper
                 {
                     float sampleX = (baseX + octaveOffsets[i].x) / scale * frequency;
                     float sampleY = (baseY + octaveOffsets[i].y) / scale * frequency;
-                    // PerlinNoise may return slightly outside [0,1]; unclamped,
-                    // the ridge fold below can go negative and Pow(neg, frac)
-                    // yields NaN, corrupting the whole chunk mesh.
+                    // PerlinNoise may return slightly outside [0,1];
                     float n = Mathf.Clamp01(Mathf.PerlinNoise(sampleX, sampleY));
 
                     smoothSum += (n * 2f - 1f) * amplitude;

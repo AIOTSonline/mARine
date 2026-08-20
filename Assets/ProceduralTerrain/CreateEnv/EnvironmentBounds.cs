@@ -2,13 +2,7 @@ using UnityEngine;
 
 namespace CreateEnv
 {
-    // The single guardrail. Every user-facing field has a Range here; Clamp()
-    // enforces all of them PLUS the cross-field invariants that individually-valid
-    // values can still violate. Clamp() runs on every load and every save, so even
-    // a hand-edited .json file cannot produce broken terrain.
-    //
-    // The UI reads these same Ranges to build its sliders, so the form literally
-    // cannot express an out-of-range value — Clamp() is the second line of defence.
+    // The single guardrail. Every user-facing field has a Range here;
     public static class EnvironmentBounds
     {
         public struct Range
@@ -168,9 +162,7 @@ namespace CreateEnv
             p.sunAzimuth        = Mathf.Repeat(p.sunAzimuth, 360f);
             p.sunLightIntensity = Mathf.Clamp(p.sunLightIntensity, 0f, 3f);
 
-            // Group 3c — surface styles. Clamped against the style tables themselves,
-            // so adding a style to SurfaceStyles.cs widens the valid range with no
-            // change here, and a hand-edited file can never index out of bounds.
+            // Group 3c — surface styles.
             p.terrainTextureStyle = Mathf.Clamp(p.terrainTextureStyle, 0,
                                                 TerrainTextureStyles.Names.Length - 1);
             p.waterStyle          = Mathf.Clamp(p.waterStyle, 0,

@@ -3,15 +3,6 @@ using UnityEngine;
 namespace CreateEnv
 {
     // Procedural surface-style libraries for the Create-Env feature.
-    //
-    // TerrainTextureStyles bakes small tileable albedo+normal textures in code
-    // (seeded hash noise → Texture2D, no texture assets) and pushes them into the
-    // terrain material (Custom/UnderwaterSand). WaterStyles is a preset table for
-    // Custom/StylizedWaterSurface (waves + pattern mode).
-    //
-    // Index 0 of both is "Classic": a strict no-op that keeps whatever the scene
-    // materials already look like. Profiles saved before these fields existed
-    // deserialize to 0, so old environments render exactly as they used to.
     public static class TerrainTextureStyles
     {
         public static readonly string[] Names =
@@ -77,9 +68,7 @@ namespace CreateEnv
             }
         }
 
-        // Caustics never repeat between environments: character comes from the
-        // sea-floor style, the rest is seeded off profile data the user already
-        // controls (seed + water palette). No UI, deterministic per environment.
+        // Caustics never repeat between environments:
         static readonly float[] CausticsScaleBase = { 0.6f, 0.6f, 0.85f, 0.45f, 0.35f, 0.75f, 0.7f };
         static readonly float[] CausticsSpeedBase = { 0.5f, 0.5f, 0.6f, 0.35f, 0.3f, 0.55f, 0.65f };
 
@@ -313,8 +302,6 @@ namespace CreateEnv
     }
 
     // Wave/pattern presets for Custom/StylizedWaterSurface. Pattern styles:
-    // 0 = caustic interference, 1 = voronoi ripple web, 2 = directional streaks
-    // (see _PatternStyle in the shader). Index 0 = Classic = leave the material alone.
     public static class WaterStyles
     {
         public static readonly string[] Names =

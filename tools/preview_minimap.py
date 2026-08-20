@@ -1,10 +1,5 @@
-"""Offline preview of MinimapRadar's layout, old rules vs new.
-
-Ports the placement/sizing maths from MinimapRadar.cs so the two can be compared on
-identical blip data. This is layout only — it says nothing about fonts or Unity's
-Text metrics — but the failure in the screenshot was layout and colour policy, and
-those are exactly what this reproduces.
-"""
+"""MinimapRadar layout, old rules vs new, on identical blip data.
+Layout only — says nothing about Unity Text metrics."""
 import math, os, random
 import numpy as np
 from PIL import Image, ImageDraw

@@ -128,8 +128,6 @@ float UwFbm2(float2 p)
 }
 
 // Height field of the crust itself: a coarse lumpiness with a finer grain on top.
-// Deliberately only two taps — ApplyEncrustation evaluates this three times to
-// difference a gradient out of it, so every tap here costs three in the frame.
 float UwCrustHeight(float2 q)
 {
     return UwValueNoise(q * 3.1) * 0.62 + UwValueNoise(q * 9.0 + 3.3) * 0.38;
@@ -155,20 +153,7 @@ half3 RockSurfaceDetail(half3 albedo, float3 positionWS, float scale,
     return albedo;
 }
 
-// Silt settling on upward-facing rock. Underwater nothing stays clean: the same
-// sediment that makes up the seabed collects on every horizontal face, so a rock
-// shares its neighbour's colour on top and only shows its own on the flanks.
-// Without it the rock is a grey object sitting on a green floor -- two unrelated
-// materials meeting at a hard line, which is most of the "pasted on" read.
-// Applied to albedo before lighting, so the dusting still catches the light.
-// Per-pixel surface relief for the textureless rock shader.
-//
-// The seabed is drawn with a real albedo + normal map, so it has per-pixel
-// lighting response. The rock has neither: its entire shading came from one flat
-// face normal, which is why the two read as different materials meeting at a hard
-// line no matter how the rock is shaped. This perturbs the normal by the gradient
-// of the same value noise the albedo mottling uses — a normal map's effect without
-// a normal map's memory. Three noise taps; set strength to 0 to skip entirely.
+// Silt settling on upward-facing rock. Underwater nothing stays clean:
 half3 PerturbRockNormal(half3 N, float3 positionWS, float scale, float strength)
 {
     if (strength <= 0.001) return N;
@@ -193,73 +178,10 @@ half3 ApplySediment(half3 albedo, half3 N, half3 sedimentColor, float amount)
     return lerp(albedo, sedimentColor, settle);
 }
 
-// Encrusting life on rock.
-//
-// In the photic zone bare rock effectively does not exist: encrusting corallines,
-// bryozoans and tubeworms colonise cleared substrate within 1-4 months, and
-// corallines are among the first colonisers of any bare rock in lit marine
-// habitats. So coverage is near-total and varies in *species*, not in *presence*.
-//
-// The previous form multiplied the noise mask by light, by AO and by amount, which
-// stacked three sub-1 factors and capped real coverage around 20-34% at the very
-// best patch (typically 4-13%) — i.e. permanently bare grey rock, which is the one
-// thing a submerged boulder never is. `_UnderwaterEncrustAmount` is now the
-// fraction of surface covered, so the profile value means what it says.
-//
-// Orientation now selects the community rather than suppressing it: lit up-faces
-// read as algal/coralline turf, shaded undersides as the dimmer sponge/ascidian
-// assemblage that actually lives there.
-//
-// Coverage alone was still not enough. Tinting the rock toward a crust colour
-// leaves it *smooth* — a boulder wearing paint — because the crust never touched
-// the normal, so no lighting anywhere in the frame reacted to it. Encrusting
-// growth is physically a layer with thickness and texture, and that relief is
-// most of what makes a reef read as alive rather than as coloured stone.
-//
-// So the crust now carries its own height field, and is lit by a normal bent
-// along that field's gradient (the same trick PerturbRockNormal uses on the rock
-// beneath). It also picks between three communities instead of ramping between
-// two, because a two-colour ramp reads as one organism that changes hue rather
-// than as a patchwork of different things competing for the same rock.
-//
-// `_UnderwaterEncrustRelief` is the escape hatch: at 0 the gradient taps are
-// skipped entirely and this costs what the old version cost.
-//
-// `ambient` is passed in rather than sampled here on purpose. This header is
-// included by depth-only passes that pull in Core.hlsl but NOT Lighting.hlsl —
-// UnderwaterProp and UnderwaterCoralTurf both do — and calling SampleSH() here
-// makes every one of those passes fail to compile, which shows up as a magenta
-// error material on geometry that has nothing to do with encrustation.
-// _MainLightPosition/_MainLightColor are fine: they live in Input.hlsl, which
-// Core.hlsl already brings in.
+// Encrusting life on rock. In the photic zone bare rock effectively does not exist:
 // ── Algal turf ───────────────────────────────────────────────────────────────
-//
-// The continuous filamentous mat that covers the lit side of any rock that has
-// sat in shallow water — the fuzzy green coat on a boulder in the surf, not the
-// discrete colonies ApplyEncrustation paints.
-//
-// This exists because the two systems that were already here cannot produce it:
-//
-//  * RockSurfaceCarpet places real cushion geometry, but it is capped per rock
-//    (a few hundred colonies of a few centimetres each), so on a two-metre
-//    boulder it covers a few percent of the surface. Raising the cap to reach
-//    full coverage is thousands of merged triangles per rock.
-//  * ApplyEncrustation is deliberately *patchy* — it picks between three
-//    communities with a low-frequency selector, so it can never read as one
-//    continuous mat, which is the whole point of turf.
-//
-// So turf is a base layer: it runs before the crust, covering the rock, and the
-// crust's colonies then sit on top of it. That ordering is what makes the
-// discrete corals read as growing on a living surface instead of on bare stone.
-//
-// Two details do most of the work:
-//
-//  1. Coverage keys hard off N.y, not off half-lambert. Filamentous algae are
-//     light-limited, so a real boulder is furred on top and bare underneath with
-//     a ragged transition down the flanks — that asymmetry is most of the read.
-//  2. It is matte. Turf is applied after the rim term, so the lerp *removes* the
-//     rim wherever the mat covers. A mossy surface with a wet specular edge
-//     looks like painted stone.
+// The continuous filamentous mat that covers the lit side of any rock that has sat in
+// shallow water — the fuzzy green coat on a boulder in the surf, not the discrete.
 half3 ApplyAlgalTurf(half3 color, float3 positionWS, half3 N, half ao,
                      half3 ambient)
 {
@@ -284,9 +206,7 @@ half3 ApplyAlgalTurf(half3 color, float3 positionWS, half3 N, half ao,
     float f0 = UwValueNoise(q * 7.0);
     float fil = f0 * 0.6 + UwValueNoise(q * 19.0 + 5.1) * 0.4;
 
-    // Wide remap on purpose. A narrow one drove most pixels to one end or the
-    // other and the mat came out as high-contrast speckle rather than as fuzz,
-    // which at distance is also the version that aliases.
+    // Wide remap on purpose.
     half3 turf = lerp(_UnderwaterTurfColor.rgb, _UnderwaterTurfTip.rgb,
                       smoothstep(0.24, 0.94, fil));
 
@@ -327,9 +247,7 @@ half3 ApplyEncrustation(half3 color, float3 positionWS, half3 N, half ao,
     float h0 = UwCrustHeight(q);
     float h  = h0 * cover;
 
-    // Which community. One low-frequency tap picks the patch; orientation decides
-    // whether it can be a lit assemblage at all, because light — not chance — is
-    // what sorts algae from filter feeders on a real rock face.
+    // Which community. One low-frequency tap picks the patch;
     float sel = UwValueNoise(q * 0.45 + float2(13.0, -7.0));
     float lit = saturate(N.y * 0.5 + 0.5);
 

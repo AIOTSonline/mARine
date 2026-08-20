@@ -2,9 +2,8 @@ using UnityEngine;
 
 namespace CreateEnv
 {
-    // The three shipped biomes, defined as data (not scenes). These appear as the
-    // first tiles on the start screen. Values mirror the original SampleScene /
-    // CoralCanyons / KelpForest scenes; tweak here to re-tune a built-in.
+    // The three shipped biomes as data, not scenes. Values mirror the original
+    // SampleScene / CoralCanyons / KelpForest scenes.
     public static class BuiltInProfiles
     {
         public static EnvironmentProfile[] All()

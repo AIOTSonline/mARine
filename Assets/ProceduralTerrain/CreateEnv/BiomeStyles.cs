@@ -2,10 +2,7 @@ using UnityEngine;
 
 namespace CreateEnv
 {
-    // The "locked" half of a biome. Users pick a style index; the height curve and
-    // the base TerrainShaper.Settings come from here, generated in code (no asset
-    // references). Only the Canyons sliders in the profile are then layered on top.
-    // Keeping the curve out of user hands is what prevents inverted/NaN terrain.
+    // The "locked" half of a biome. Users pick a style index;
     public static class BiomeStyles
     {
         public static readonly string[] Names = { "Classic (dunes)", "Canyons" };

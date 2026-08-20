@@ -1,10 +1,5 @@
-"""Offline preview for the seagrass tuft builder.
-
-Mirrors the C# ProceduralMeshLibrary.BuildSeagrassTuft so the shape can be judged
-before it is wired into the scatter. Renders one tuft and a meadow patch, because
-the two failure modes are different: a tuft can look right alone and still read as
-a field of identical shuttlecocks when repeated.
-"""
+"""Offline preview for BuildSeagrassTuft. Renders one tuft and a meadow patch —
+a tuft can look right alone and still read as shuttlecocks when repeated."""
 import math, os, sys, random
 import numpy as np
 from PIL import Image
@@ -28,11 +23,8 @@ def seagrass_tuft(rng, blades=None, current=None):
     verts, tris = [], []
     n = blades if blades is not None else rng.randint(9, 13)
 
-    # The current is a property of the *meadow*, not the shoot. Every tuft leans
-    # broadly the same way with only a little jitter, which is what gives a bed its
-    # grain — and the grain is the whole reason this reads as a surface instead of
-    # as a field of separate plants. A per-tuft random direction (the first attempt)
-    # cancels out across the patch and looks like scattered sprigs.
+    # The current is a property of the *meadow*, not the shoot. Every tuft leans broadly
+    # the same way with only a little jitter, which is what gives a bed its grain — and
     lean_dir = (rng.uniform(0, math.tau) if current is None
                 else current + rng.uniform(-0.45, 0.45))
     segs = 5                                   # 5 segments = 10 tris a blade
@@ -60,14 +52,11 @@ def seagrass_tuft(rng, blades=None, current=None):
             # Arc: lateral lean grows faster than linear while height compresses,
             # which keeps the blade roughly the same arc-length as it bends over.
             y = h * (t - 0.30 * t ** 3 * bend)
-            # A pure power curve leaves the sediment with zero slope, so every
-            # blade starts dead vertical and a dense tuft becomes a block of
-            # pillars. The linear term gives the blade a lean from the first
-            # segment, which is also what a real shoot does under any current.
+            # A pure power curve leaves the sediment with zero slope, so every blade starts dead
+            # vertical and a dense tuft becomes a block of pillars. The linear term gives the
             lat = h * bend * (0.28 * t + 0.72 * t ** 1.7)
-            # Narrow where it leaves the sediment, widest around a third up, then
-            # a long taper. Widest-at-base is what made the bed's bottom edge read
-            # as a row of rectangles.
+            # Narrow where it leaves the sediment, widest around a third up, then a long taper.
+            # Widest-at-base is what made the bed's bottom edge read as a row of rectangles.
             swell = math.sin(min(t, 0.30) / 0.30 * 1.57)
             width = w0 * (0.42 + 0.62 * swell - 0.46 * t)
 

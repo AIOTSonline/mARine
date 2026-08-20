@@ -5,10 +5,6 @@ namespace CreateEnv
 {
     // A whole environment as plain, serializable data. This is what the three
     // built-in biomes and every user-made environment ARE — no scene, no prefab.
-    // JsonUtility-friendly (only primitives, Color, and a float[]); saved as one
-    // .json file per user environment. Every field here has a matching cap in
-    // EnvironmentBounds; nothing is applied to the terrain until it has been
-    // through EnvironmentBounds.Clamp().
     [Serializable]
     public class EnvironmentProfile
     {
@@ -52,10 +48,8 @@ namespace CreateEnv
         public float cameraFarMargin = 3f;
 
         // ── Group 3b: Medium, surge, particulate ─────────────────────────────
-        // Every default here reproduces the pre-existing look exactly, so a
-        // profile saved before these fields existed deserializes to 0 and
-        // renders identically. New/edited profiles get real values from
-        // SimpleEnvironmentMapper.
+        // Every default here reproduces the pre-existing look exactly, so a profile saved
+        // before these fields existed deserializes to 0 and renders identically.
         public float absorbTint = 0f;
         public float surgeAmplitude = 0f;
         public float surgeSpeed = 0.55f;
@@ -73,17 +67,12 @@ namespace CreateEnv
         public float encrustScale = 1.6f;
         public Color encrustColorA = new Color(0.62f, 0.28f, 0.42f, 1f);
         public Color encrustColorB = new Color(0.78f, 0.46f, 0.26f, 1f);
-        // Cryptic (underside/overhang) community. Profiles saved before this field
-        // existed deserialise to a=0, which the loader reads as "unset" and fills
-        // from the ocean model rather than shading undersides transparent-black.
+        // Cryptic (underside/overhang) community.
         public Color encrustColorC = new Color(0.44f, 0.20f, 0.26f, 1f);
         // 0 = the old flat tint, 1 = full crust relief. See ApplyEncrustation.
         public float encrustRelief = 0.85f;
 
-        // Algal turf: the continuous mat the encrusting colonies sit on. See
-        // ApplyAlgalTurf. Profiles saved before these fields existed deserialise
-        // to turfAmount = 0, which is exactly "no mat" — the pre-turf look — so
-        // old saves keep rendering the way they did.
+        // Algal turf: the continuous mat the encrusting colonies sit on. See ApplyAlgalTurf.
         public float turfAmount = 0f;
         public Color turfColor = new Color(0.15f, 0.30f, 0.12f, 1f);
         public Color turfTipColor = new Color(0.46f, 0.66f, 0.20f, 1f);
@@ -92,10 +81,8 @@ namespace CreateEnv
         public float turfRelief = 0.7f;
 
         // ── Group 3c: Surface styles (SurfaceStyles.cs) ──────────────────────
-        // Indices into TerrainTextureStyles.Names / WaterStyles.Names. Index 0 of
-        // both is "Classic": a strict no-op that leaves the scene's own materials
-        // untouched, so a profile saved before these fields existed deserializes
-        // to 0 and renders exactly as it always did.
+        // Indices into TerrainTextureStyles.Names / WaterStyles.Names. Index 0 of both is
+        // "Classic":
         public int terrainTextureStyle = 0;
         public int waterStyle = 0;
 
@@ -124,15 +111,12 @@ namespace CreateEnv
 
         // ── User layer ───────────────────────────────────────────────────────
         // The friendly choices this profile was made from (see SimpleEnvironmentMapper).
-        // Persisted so editing an environment re-opens with the same choices; the
-        // technical fields above stay the single source of truth for the loader.
+        // Persisted so editing an environment re-opens with the same choices;
         public SimpleEnvironmentSettings simple = new SimpleEnvironmentSettings();
 
         // ── Group 6: Living Ecosystem ────────────────────────────────────────
-        // Off by default, so an environment saved before this feature existed loads
-        // with the ecosystem disabled and behaves exactly as it did. JsonUtility
-        // leaves a missing object at its field initialiser, so old .json files are
-        // read without migration.
+        // Off by default, so an environment saved before this feature existed loads with the
+        // ecosystem disabled and behaves exactly as it did.
         public Ecosystem.EcosystemSettings ecosystem = new Ecosystem.EcosystemSettings();
 
         public EnvironmentProfile Clone()
