@@ -341,7 +341,18 @@ namespace CreateEnv.Ecosystem
             var prefab = SpeciesVisualLibrary.PrefabFor(species);
             if (prefab != null)
             {
-                go = Instantiate(prefab, transform);
+                // The imported model hangs under a container rather than being the
+                // instance itself. Everything below — seating, sway, crawl, swim —
+                // writes go.transform.rotation outright, so a correction applied to
+                // the model's own transform would survive exactly one frame. Put it a
+                // level down and the animation code can keep owning the top.
+                go = new GameObject($"{def.id}_{index}");
+                go.transform.SetParent(transform, false);
+
+                var model = Instantiate(prefab, go.transform);
+                model.transform.localPosition = Vector3.zero;
+                model.transform.localRotation = SpeciesVisualLibrary.ModelRotationFor(species);
+                ConfigureRenderers(model);
             }
             else
             {
@@ -354,10 +365,7 @@ namespace CreateEnv.Ecosystem
 
                 var mr = go.AddComponent<MeshRenderer>();
                 mr.sharedMaterial = SpeciesVisualLibrary.MaterialFor(species);
-                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                mr.receiveShadows = false;
-                mr.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
-                mr.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+                ConfigureRenderers(go);
             }
 
             go.name = $"{def.id}_{index}";
@@ -407,6 +415,25 @@ namespace CreateEnv.Ecosystem
                 baseScale = normalisedScale,
                 view = view,
             };
+        }
+
+        // Shadows, light probes and reflection probes off on every drawn organism.
+        //
+        // The built meshes always had these off; the imported models arrive with the
+        // importer's defaults, which at up to 48 models on screen is a per-object
+        // cost the reef gets nothing back for — these are small, close to the sand,
+        // and lit by the same ambient the rest of the environment uses.
+        static void ConfigureRenderers(GameObject go)
+        {
+            var renderers = go.GetComponentsInChildren<Renderer>(true);
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                var r = renderers[i];
+                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                r.receiveShadows = false;
+                r.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+                r.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+            }
         }
 
         // Scales whatever the model happens to be so it stands the right number of

@@ -4,8 +4,14 @@ namespace CreateEnv.Ecosystem
 {
     // Where a species' model and material come from.
     //
-    //   1. A prefab at Resources/LivingEcosystem/Species/<id>, if one exists.
+    //   1. A model at Resources/LivingEcosystem/Species/<id>, if one exists.
     //   2. Otherwise a species-shaped mesh from ReefMeshLibrary.
+    //
+    // Eight of the nine now resolve to a scanned, decimated .glb in that folder.
+    // The octopus is deliberately still the built mesh: she is the one organism
+    // drawn as an individual, and her camouflage is a per-agent tint pushed through
+    // a MaterialPropertyBlock onto a single renderer, which a multi-material
+    // textured import would not carry.
     //
     // Meshes AND materials are built once per species and shared by every instance.
     // That sharing is not tidiness, it is the frame rate: giving each drawn organism
@@ -33,6 +39,31 @@ namespace CreateEnv.Ecosystem
         {
             Resolve(species);
             return _prefabs[species];
+        }
+
+        // How far the imported model has to be turned to face the way the renderer
+        // assumes every organism faces.
+        //
+        // ReefMeshLibrary builds its swimmers nose-along-+Z, and the motion code
+        // steers with Quaternion.LookRotation, which points +Z down the direction of
+        // travel. The scanned models were not authored to that convention: the three
+        // long-bodied animals lie along X instead, the parrotfish nose-first towards
+        // +X and the shark and lobster towards -X. Measured off the geometry rather
+        // than eyeballed — the paper-thin slice at one end of each long axis is the
+        // caudal fin or the tail fan, and the head is the other end.
+        //
+        // The rest are radially symmetric or rooted, so any yaw is as good as any
+        // other and they are left alone. This describes the assets in
+        // Resources/LivingEcosystem/Species; replacing one means re-checking its entry.
+        public static Quaternion ModelRotationFor(int species)
+        {
+            switch (species)
+            {
+                case SpeciesLibrary.Parrotfish: return Quaternion.Euler(0f, -90f, 0f);
+                case SpeciesLibrary.TigerShark: return Quaternion.Euler(0f,  90f, 0f);
+                case SpeciesLibrary.Lobster:    return Quaternion.Euler(0f,  90f, 0f);
+                default:                        return Quaternion.identity;
+            }
         }
 
         public static Mesh MeshFor(int species)
