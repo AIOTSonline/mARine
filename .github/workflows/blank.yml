@@ -1,4 +1,4 @@
-name: Replace mARine Main with Marine Biology AR
+name: Import Marine Biology AR into mARine
 
 on:
   workflow_dispatch:
@@ -7,24 +7,47 @@ permissions:
   contents: write
 
 jobs:
-  replace-main:
+  import:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout mARine
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Fetch Marine Biology AR main
+      - name: Clone Marine Biology AR
         run: |
-          git remote add source https://github.com/AIOTSonline/Marine_Biology_AR_Application.git
-          git fetch source main
+          git clone --depth 1 --branch main \
+            https://github.com/AIOTSonline/Marine_Biology_AR_Application.git \
+            /tmp/marine-source
 
-      - name: Replace mARine main
+      - name: Replace working tree with Marine Biology AR
+        run: |
+          rm -rf Assets Packages ProjectSettings QCAR web
+          cp -a /tmp/marine-source/Assets .
+          cp -a /tmp/marine-source/Packages .
+          cp -a /tmp/marine-source/ProjectSettings .
+          cp -a /tmp/marine-source/QCAR .
+          cp -a /tmp/marine-source/web .
+
+          cp /tmp/marine-source/.gitignore . 2>/dev/null || true
+          cp /tmp/marine-source/.gitattributes . 2>/dev/null || true
+          cp /tmp/marine-source/README.md . 2>/dev/null || true
+
+      - name: Commit imported application
+        run: |
+          git config user.name "AIOTSonline"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          git commit -m "feat: import consolidated Marine Biology AR application"
+
+      - name: Push to mARine main
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           git remote set-url origin https://x-access-token:${GH_PAT}@github.com/AIOTSonline/mARine.git
-          git push --force origin source/main:main
+          git push origin HEAD:main
