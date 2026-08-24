@@ -78,7 +78,8 @@ A student can place a reef on a classroom desk, remove the shark from the food w
   <table>
     <tr>
       <td align="center">
-        <img width="300" alt="Living Ecosystem control panel" src="media/img1.png" />
+        <img width="300" alt="Living Ecosystem control panel" src="<img width="882" height="1960" alt="img1" src="https://github.com/user-attachments/assets/98ea1d18-ac42-4257-b5fc-5a59db1d0dca" />
+" />
         <br>
         <em>Living Ecosystem - water controls, populations, energy pyramid and health</em>
       </td>
