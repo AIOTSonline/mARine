@@ -22,5 +22,8 @@ jobs:
           git fetch source main
 
       - name: Replace mARine main
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
+          git remote set-url origin https://x-access-token:${GH_PAT}@github.com/AIOTSonline/mARine.git
           git push --force origin source/main:main
