@@ -21,22 +21,17 @@ jobs:
         run: |
           git clone --depth 1 --branch main \
             https://github.com/AIOTSonline/Marine_Biology_AR_Application.git \
-            /tmp/marine-source
+            /tmp/source
 
-      - name: Replace working tree with Marine Biology AR
+      - name: Replace repository contents with source
         run: |
-          rm -rf Assets Packages ProjectSettings QCAR web
-          cp -a /tmp/marine-source/Assets .
-          cp -a /tmp/marine-source/Packages .
-          cp -a /tmp/marine-source/ProjectSettings .
-          cp -a /tmp/marine-source/QCAR .
-          cp -a /tmp/marine-source/web .
+          # Remove everything from mARine except its .git directory
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
 
-          cp /tmp/marine-source/.gitignore . 2>/dev/null || true
-          cp /tmp/marine-source/.gitattributes . 2>/dev/null || true
-          cp /tmp/marine-source/README.md . 2>/dev/null || true
+          # Copy the complete source repository contents
+          rsync -a --exclude='.git/' /tmp/source/ ./
 
-      - name: Commit imported application
+      - name: Commit imported content
         run: |
           git config user.name "AIOTSonline"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -50,4 +45,4 @@ jobs:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           git remote set-url origin https://x-access-token:${GH_PAT}@github.com/AIOTSonline/mARine.git
-          git push origin HEAD:main
+          git push --force-with-lease origin HEAD:main
