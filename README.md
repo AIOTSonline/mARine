@@ -78,25 +78,24 @@ A student can place a reef on a classroom desk, remove the shark from the food w
   <table>
     <tr>
       <td align="center">
-        <img width="300" alt="Living Ecosystem control panel" src="<img width="882" height="1960" alt="img1" src="https://github.com/user-attachments/assets/98ea1d18-ac42-4257-b5fc-5a59db1d0dca" />
-" />
+        <img width="300" alt="Living Ecosystem control panel" src="https://github.com/user-attachments/assets/98ea1d18-ac42-4257-b5fc-5a59db1d0dca">
         <br>
         <em>Living Ecosystem - water controls, populations, energy pyramid and health</em>
       </td>
       <td align="center">
-        <img width="300" alt="The reef in Boundless mode" src="media/img2.png" />
+        <img width="300" alt="The reef in Boundless mode" src="https://github.com/user-attachments/assets/6c39836e-0bd5-432e-ad3c-fd045776442a" />
         <br>
         <em>The reef running - tiger shark, octopus, lobster and coral</em>
       </td>
     </tr>
     <tr>
       <td align="center">
-        <img width="300" alt="AR Spawner placing an organism" src="media/img3.png" />
+        <img width="300" alt="AR Spawner placing an organism" src="https://github.com/user-attachments/assets/2c8656d7-ff7b-4283-b00a-f2b6cb5a51f4" />
         <br>
         <em>AR Spawner - any of 293 organisms, placed at real scale</em>
       </td>
       <td align="center">
-        <img width="300" alt="Marina AI assistant" src="media/img4.png" />
+        <img width="300" alt="Marina AI assistant" src="https://github.com/user-attachments/assets/30276885-aff5-49d9-b265-d58345a4b77c" />
         <br>
         <em>Marina AI - multilingual voice assistant</em>
       </td>
