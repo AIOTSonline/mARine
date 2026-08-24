@@ -1,4 +1,4 @@
-name: Import GSoC 2026 Work
+name: Replace mARine Main with Marine Biology AR
 
 on:
   workflow_dispatch:
@@ -7,33 +7,20 @@ permissions:
   contents: write
 
 jobs:
-  import:
+  replace-main:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout mARine
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Create integration branch
-        run: |
-          git checkout -b gsoc-2026-import
-
-      - name: Fetch Marine Biology AR Application
+      - name: Fetch Marine Biology AR main
         run: |
           git remote add source https://github.com/AIOTSonline/Marine_Biology_AR_Application.git
           git fetch source main
 
-      - name: Merge consolidated application history
+      - name: Replace mARine main
         run: |
-          git merge source/main --allow-unrelated-histories --no-edit
-
-      - name: Push integration branch
-        run: |
-          git push origin gsoc-2026-import
+          git push --force origin source/main:main
